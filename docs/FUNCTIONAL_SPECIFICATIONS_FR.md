@@ -56,7 +56,50 @@ TIFINIA AI Solutions
   → applique l'IA aux verticales métier
 ```
 
-## 3. Utilisateurs et rôles
+## 3. Verticalisation et capacités transverses
+
+Le framework conserve un **Core Framework horizontal** et ajoute des **Vertical Packs**. Les règles de discovery, scoring, readiness, gouvernance et génération documentaire restent communes. Les questions, KPI, risques et exemples de use cases sont adaptés au secteur.
+
+### Vertical Packs initiaux
+
+- Talent / RH
+- Customer Support
+- Compliance & Finance
+- Secteur public
+- Santé
+- Juridique
+
+### Capacité transverse prioritaire : AI Case Processing
+
+**AI Case Processing** est un use case réutilisable pour analyser, compléter, qualifier, résumer et faire progresser des dossiers métier composés de plusieurs documents, étapes et décisions.
+
+Exemples de déclinaisons :
+
+- dossier patient ou dossier de prise en charge ;
+- dossier de remboursement mutualiste ou assurance ;
+- dossier de crédit ;
+- dossier de candidature ou recrutement ;
+- dossier de conformité ;
+- dossier de financement public ;
+- dossier fournisseur ou procurement ;
+- dossier juridique.
+
+Le framework doit traiter ce cas comme une capability packagée, avec :
+
+- ingestion de documents et métadonnées ;
+- classification du dossier ;
+- extraction des champs et pièces ;
+- détection des éléments manquants ;
+- vérification de cohérence ;
+- résumé du dossier ;
+- scoring ou recommandation ;
+- routage vers le bon workflow ;
+- validation humaine ;
+- journalisation et traçabilité de la décision.
+
+Le système ne doit pas présenter une recommandation comme une décision automatique lorsque la validation humaine, réglementaire ou métier est requise.
+
+## 4. Utilisateurs et rôles
 
 ### Consultant / AI Advisor
 
@@ -338,9 +381,81 @@ La vue Portfolio doit permettre :
 - sélection des use cases à inclure dans la roadmap ;
 - export image ou PDF de la matrice.
 
-## 10. Génération documentaire
+## 10. Cas d'usage phare : AI Case Processing
 
-### 9.1 Documents générés
+AI Case Processing est une capacité transverse de TIFINIA AI Value Studio et un candidat prioritaire pour les pilotes clients.
+
+### Définition
+
+> Transformer un dossier métier hétérogène en un dossier structuré, contrôlé, résumé et prêt pour décision ou traitement.
+
+### Chaîne fonctionnelle
+
+```text
+Réception
+→ classification
+→ extraction
+→ contrôle de complétude
+→ vérification de cohérence
+→ synthèse
+→ recommandation
+→ validation humaine
+→ routage / action
+→ audit
+```
+
+### Questions spécifiques d'assessment
+
+- Quel type de dossier est traité ?
+- Combien de dossiers sont reçus par période ?
+- Combien de documents contient un dossier moyen ?
+- Quels formats et canaux sont utilisés ?
+- Quelles pièces sont obligatoires ?
+- Quelles informations doivent être extraites ?
+- Quelles incohérences ou fraudes faut-il détecter ?
+- Quelle décision ou action suit le traitement ?
+- Quel délai de traitement est attendu ?
+- Quel niveau de validation humaine est obligatoire ?
+- Quel est le coût d'un dossier incomplet ou mal traité ?
+- Quelles données personnelles, médicales ou financières sont présentes ?
+
+### KPI possibles
+
+- délai moyen de traitement ;
+- taux de dossiers complets au premier passage ;
+- taux d'extraction correcte ;
+- taux de dossiers routés automatiquement ;
+- temps humain par dossier ;
+- taux d'erreur ou de reprise ;
+- taux de respect du SLA ;
+- taux de validation humaine ;
+- coût moyen par dossier ;
+- satisfaction de l'agent et du demandeur.
+
+### Garde-fous
+
+- validation humaine pour les décisions à impact ;
+- citation de la pièce ou de la donnée source ;
+- journal de toutes les modifications ;
+- séparation entre extraction, recommandation et décision ;
+- gestion des dossiers incomplets et des exceptions ;
+- contrôle d'accès par dossier et par rôle ;
+- conservation et suppression selon la politique client.
+
+### Déclinaisons verticales
+
+| Verticale | Exemple de dossier | Décision ou action |
+|---|---|---|
+| Santé | dossier patient / prise en charge | compléter, orienter, préparer la revue |
+| Mutuelle / assurance | dossier de remboursement | contrôler, qualifier, router |
+| Crédit | dossier de demande de financement | vérifier, scorer, envoyer en comité |
+| RH | dossier candidat | extraire, matcher, préparer l'entretien |
+| Compliance | dossier KYC / contrôle | détecter les manquants, escalader |
+| Public | dossier d'aide ou de financement | vérifier l'éligibilité, instruire |
+
+## 11. Génération documentaire
+
+### 11.1 Documents générés
 
 À partir des données du programme et des use cases :
 
