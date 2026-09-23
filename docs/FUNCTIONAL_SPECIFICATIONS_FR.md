@@ -18,7 +18,45 @@ Programme client
   → Roadmap
 ```
 
-## 2. Utilisateurs et rôles
+## 2. Naming et positionnement officiel
+
+### Nom du produit
+
+# TIFINIA AI Value Studio
+
+### Description courte
+
+> La plateforme d'AMOA IA pour identifier, évaluer et prioriser les cas d'usage à forte valeur business.
+
+### Tagline
+
+> De l'idée IA au cas d'usage finançable et activable.
+
+### Pourquoi "Value Studio"
+
+- **Value** positionne le produit sur le résultat métier : productivité, réduction des coûts, revenus, qualité, capacité et maîtrise du risque.
+- **Studio** exprime un espace de travail collaboratif où le consultant et le client construisent ensemble les use cases, les business cases et la roadmap.
+- Le nom reste extensible : framework de conseil, application Web, workspace collaboratif, moteur de scoring et porte d'entrée vers TIFINIA AI Platform.
+- Le nom évite de réduire le produit à un simple questionnaire, à un outil de scoring ou à un générateur de documents.
+
+### Description anglaise
+
+> A structured advisory and decision platform for discovering, assessing and prioritizing AI use cases.
+
+### Architecture de gamme
+
+```text
+TIFINIA AI Value Studio
+  → découvre et priorise les opportunités
+TIFINIA AI Platform
+  → gouverne et opère les capacités IA
+TIFINIA Agent Studio
+  → conçoit et teste les agents et workflows
+TIFINIA AI Solutions
+  → applique l'IA aux verticales métier
+```
+
+## 3. Utilisateurs et rôles
 
 ### Consultant / AI Advisor
 
@@ -51,7 +89,7 @@ Programme client
 - gère les templates de questionnaires ;
 - configure branding, langue et paramètres du workspace.
 
-## 3. Principes UX
+## 4. Principes UX
 
 - Un écran = une décision ou une question principale.
 - Progression visible et sauvegarde automatique.
@@ -62,7 +100,7 @@ Programme client
 - Le score n'est jamais présenté comme une vérité automatique : il est accompagné d'une justification et d'un niveau de confiance.
 - Interface prioritairement en français, structure prête pour anglais et arabe RTL.
 
-## 4. Navigation principale
+## 5. Navigation principale
 
 - Dashboard
 - Organisations
@@ -73,7 +111,7 @@ Programme client
 - Templates
 - Settings
 
-## 5. Parcours principal : création d'un programme
+## 6. Parcours principal : création d'un programme
 
 ### 5.1 Créer une organisation
 
@@ -118,7 +156,7 @@ Le dashboard doit afficher :
 - documents générés ;
 - prochaine action recommandée.
 
-## 6. Wizard de création d'un use case
+## 7. Wizard de création d'un use case
 
 Le wizard est sauvegardé étape par étape. Chaque étape affiche `Précédent`, `Sauvegarder et quitter`, `Continuer` et, lorsque pertinent, `Passer en revue`.
 
@@ -247,7 +285,7 @@ L'écran affiche :
 
 Actions : `Soumettre pour revue`, `Demander des informations`, `Enregistrer comme brouillon`.
 
-## 7. Scoring et priorisation
+## 8. Scoring et priorisation
 
 ### 7.1 Dimensions
 
@@ -288,7 +326,7 @@ Le système doit conserver :
 
 Une surcharge manuelle requiert un commentaire du consultant.
 
-## 8. Portfolio view
+## 9. Portfolio view
 
 La vue Portfolio doit permettre :
 
@@ -300,7 +338,7 @@ La vue Portfolio doit permettre :
 - sélection des use cases à inclure dans la roadmap ;
 - export image ou PDF de la matrice.
 
-## 9. Génération documentaire
+## 10. Génération documentaire
 
 ### 9.1 Documents générés
 
@@ -341,7 +379,7 @@ Phase suivante :
 - aucun document ne doit être présenté comme validé sans validation explicite ;
 - régénérer une nouvelle version au lieu d'écraser une version approuvée.
 
-## 10. Assistance IA
+## 11. Assistance IA
 
 L'assistant IA peut :
 
@@ -363,7 +401,7 @@ Contraintes :
 - aucune donnée client ne doit être utilisée pour entraîner un modèle sans consentement explicite ;
 - les prompts et sorties sensibles doivent être journalisés selon la politique du workspace.
 
-## 11. Modèle de données fonctionnel
+## 12. Modèle de données fonctionnel
 
 ### Organisation
 
@@ -405,7 +443,7 @@ Contraintes :
 
 - id, target_type, target_id, author_id, body, status, created_at.
 
-## 12. Permissions
+## 13. Permissions
 
 - Un client ne voit que son workspace.
 - Un contributor ne voit que les programmes auxquels il est affecté.
@@ -413,7 +451,7 @@ Contraintes :
 - Un consultant peut modifier les réponses mais les changements importants sont historisés.
 - Un admin peut configurer les templates mais ne peut pas lire les données d'un autre workspace sans permission.
 
-## 13. MVP recommandé
+## 14. MVP recommandé
 
 ### Inclus dans le MVP
 
@@ -440,7 +478,7 @@ Contraintes :
 - PowerPoint avancé ;
 - application mobile.
 
-## 14. Critères d'acceptation principaux
+## 15. Critères d'acceptation principaux
 
 ### Wizard
 
@@ -469,7 +507,7 @@ Contraintes :
 - Les permissions sont vérifiées côté serveur.
 - Les actions sensibles sont présentes dans l'audit log.
 
-## 15. Backlog de construction
+## 16. Backlog de construction
 
 ### Epic 1 — Foundation
 
@@ -519,7 +557,7 @@ Contraintes :
 - suggestions de KPI ;
 - génération executive summary avec validation humaine.
 
-## 16. Definition of Done MVP
+## 17. Definition of Done MVP
 
 - Un consultant peut créer un programme complet.
 - Il peut documenter au moins 3 use cases via le wizard.
