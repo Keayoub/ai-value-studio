@@ -17,6 +17,7 @@ Business discovery → Use case definition → Value assessment → Readiness �
 - AI Portfolio Matrix
 - Executive AI Opportunity Brief
 - Product brief and commercial packaging
+- [Functional specifications](docs/FUNCTIONAL_SPECIFICATIONS_FR.md) for the Web wizard, assessment engine and document generation
 
 ## Positioning
 
