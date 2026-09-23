@@ -18,6 +18,7 @@ Business discovery → Use case definition → Value assessment → Readiness �
 - Executive AI Opportunity Brief
 - Product brief and commercial packaging
 - [Functional specifications](docs/FUNCTIONAL_SPECIFICATIONS_FR.md) for the Web wizard, assessment engine and document generation
+- [Coding agent brief](docs/CODING_AGENT_BRIEF_FR.md) for the MVP implementation scope and acceptance criteria
 
 ## Positioning
 
