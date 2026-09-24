@@ -16,12 +16,9 @@ def render_amoa_implementation_plan(
     today = datetime.utcnow().strftime("%Y-%m-%d")
     ai_marker = "Oui" if kickstart is not None else "Non"
 
-    risks = "
-".join(f"- {r}" for r in profile.key_risks)
-    deps = "
-".join(f"- {d}" for d in profile.dependencies)
-    kpis = "
-".join(f"- {k}" for k in profile.kpis)
+    risks = "\n".join(f"- {r}" for r in profile.key_risks)
+    deps = "\n".join(f"- {d}" for d in profile.dependencies)
+    kpis = "\n".join(f"- {k}" for k in profile.kpis)
 
     return f"""# AMOA Use Case Implementation Plan
 
