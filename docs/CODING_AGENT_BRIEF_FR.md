@@ -50,6 +50,7 @@ Tagline : **De l'idée IA au cas d'usage finançable et activable.**
 3. Rôles : Consultant, Sponsor, Contributor, Workspace Admin.
 4. Dashboard programme.
 5. Wizard de création d'un use case en 8 étapes.
+6. Kickstart LLM optionnel au démarrage du wizard pour générer un brouillon éditable.
 6. Autosave, reprise et validation des réponses.
 7. Mode interview pour que le consultant remplisse le wizard avec le client.
 8. Scorecard business value / readiness / risk.
@@ -57,6 +58,7 @@ Tagline : **De l'idée IA au cas d'usage finançable et activable.**
 10. Portfolio list et matrice valeur / faisabilité.
 11. Commentaires, revue et approbation.
 12. Génération de documents Markdown et PDF.
+13. Option de génération du document AMOA de mise en place du use case.
 13. Versioning des documents.
 14. Audit log minimal.
 15. Interface française avec fondation i18n prête pour EN et AR RTL.
@@ -87,6 +89,10 @@ Créer organisation
 ```
 
 ### 2. Use case wizard
+
+Étape 0 optionnelle avant les 8 étapes obligatoires :
+
+- **Kickstart LLM** : générer un premier brouillon (problème, solution IA, KPI, hypothèses, risques, infos manquantes), entièrement éditable et marqué `AI-assisted`.
 
 Étapes obligatoires :
 
@@ -266,6 +272,7 @@ MVP :
 - AI Readiness Assessment ;
 - Risk & Governance Profile ;
 - Executive AI Opportunity Brief ;
+- AMOA Use Case Implementation Plan ;
 - Portfolio Prioritization Report ;
 - Pilot Charter ;
 - AI Roadmap.
@@ -330,6 +337,7 @@ Direction visuelle :
 - Toute surcharge de score est historisée.
 - Un sponsor peut commenter et approuver.
 - Un use case peut être exporté en Executive Brief et Pilot Charter PDF.
+- Un use case peut générer un document AMOA de mise en place versionné.
 - Un document approuvé ne peut pas être écrasé.
 - Un workspace ne peut jamais accéder aux données d'un autre workspace.
 - Les actions sensibles apparaissent dans l'audit log.

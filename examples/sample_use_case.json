@@ -1,0 +1,40 @@
+{
+  "use_case_name": "AI Case Processing - Dossiers de remboursement",
+  "program_name": "Sprint Value Discovery",
+  "scores": [
+    {"dimension": "business_value", "value": 5, "justification": "Volume élevé"},
+    {"dimension": "current_friction", "value": 4, "justification": "Processus manuel"},
+    {"dimension": "data_feasibility", "value": 4, "justification": "Données accessibles"},
+    {"dimension": "technical_feasibility", "value": 4, "justification": "Intégration faisable"},
+    {"dimension": "adoption_potential", "value": 4, "justification": "Sponsor engagé"},
+    {"dimension": "risk_governance", "value": 3, "justification": "Risque maîtrisable"}
+  ],
+  "value_inputs": {
+    "annual_volume": 24000,
+    "time_saved_hours": 0.2,
+    "hourly_cost": 20,
+    "error_reduction_rate": 0.12,
+    "average_error_cost": 35,
+    "revenue_capacity_value": 60000,
+    "estimated_annual_cost": 50000
+  },
+  "use_case_profile": {
+    "title": "AI Case Processing - Remboursements",
+    "organization": "Client Démo",
+    "department": "Back-office",
+    "owner": "Directeur Opérations",
+    "problem_statement": "Délais et reprises élevées",
+    "ai_solution": "Extraction et contrôle de complétude assistés par IA",
+    "required_human_validation": "Validation manuelle obligatoire avant décision finale",
+    "key_risks": ["Conformité", "Erreurs de classification"],
+    "dependencies": ["GED", "CRM", "Bus d'intégration"],
+    "kpis": ["Délai moyen de traitement", "Taux de dossiers complets", "Taux de reprise"]
+  },
+  "kickstart_input": {
+    "strategic_objective": "Réduire le délai de traitement de 30%",
+    "target_process": "Instruction des dossiers de remboursement",
+    "current_friction": "Reprises manuelles fréquentes",
+    "impacted_department": "Back-office",
+    "critical_constraints": "Aucune décision automatique sans validation humaine"
+  }
+}

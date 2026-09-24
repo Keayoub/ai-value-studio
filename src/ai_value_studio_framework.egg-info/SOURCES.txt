@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+src/ai_value_studio/__init__.py
+src/ai_value_studio/cli.py
+src/ai_value_studio/documents.py
+src/ai_value_studio/llm_kickstart.py
+src/ai_value_studio/models.py
+src/ai_value_studio/scoring.py
+src/ai_value_studio_framework.egg-info/PKG-INFO
+src/ai_value_studio_framework.egg-info/SOURCES.txt
+src/ai_value_studio_framework.egg-info/dependency_links.txt
+src/ai_value_studio_framework.egg-info/top_level.txt
+tests/test_kickstart_and_document.py
+tests/test_scoring.py

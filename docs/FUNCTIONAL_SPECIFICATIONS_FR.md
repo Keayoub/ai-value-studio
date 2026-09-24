@@ -203,6 +203,27 @@ Le dashboard doit afficher :
 
 Le wizard est sauvegardé étape par étape. Chaque étape affiche `Précédent`, `Sauvegarder et quitter`, `Continuer` et, lorsque pertinent, `Passer en revue`.
 
+### Étape 0 — Kickstart LLM (optionnel)
+
+Avant l'étape 1, le consultant peut lancer un assistant de démarrage pour générer un premier brouillon éditable du use case à partir de quelques entrées minimales :
+
+- objectif stratégique ;
+- processus ciblé ;
+- principale friction actuelle ;
+- département et population impactée ;
+- contraintes critiques (réglementaires, sécurité, SLA).
+
+Sorties proposées par l'assistant (toujours éditables) :
+
+- problem statement ;
+- proposition de solution IA ;
+- KPI initiaux ;
+- hypothèses de valeur ;
+- risques initiaux ;
+- informations manquantes à confirmer.
+
+Toutes les suggestions sont marquées `AI-assisted` et ne valent jamais validation automatique.
+
 ### Étape 1 — Contexte et processus
 
 Questions :
@@ -464,6 +485,7 @@ Réception
 - AI Readiness Assessment ;
 - Risk & Governance Profile ;
 - Executive AI Opportunity Brief ;
+- AMOA Use Case Implementation Plan ;
 - Portfolio Prioritization Report ;
 - Pilot Charter ;
 - AI Roadmap ;
@@ -500,6 +522,7 @@ L'assistant IA peut :
 
 - reformuler un problème métier ;
 - détecter les informations manquantes ;
+- kickstarter un brouillon de use case au démarrage du wizard ;
 - proposer des use cases à partir d'un processus ;
 - suggérer des KPI ;
 - résumer une interview ;
@@ -572,12 +595,14 @@ Contraintes :
 
 - authentification et workspace ;
 - création organisation / programme ;
+- kickstart LLM optionnel au démarrage du wizard ;
 - wizard use case en 8 étapes ;
 - autosave et reprise ;
 - scorecard manuelle assistée ;
 - calcul de priorité ;
 - portfolio matrix ;
 - génération Markdown et PDF ;
+- génération d'un document AMOA de mise en place du use case ;
 - rôles Consultant, Sponsor, Contributor ;
 - audit minimal des changements ;
 - interface française avec fondation i18n.
