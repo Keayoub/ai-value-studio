@@ -1,4 +1,4 @@
-# TIFINIA AI Value Studio
+# AI Value Studio
 
 ## From AI ideas to business value
 
