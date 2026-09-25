@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List
 
+MAX_KICKSTART_FIELD_CHARS = 800
+
 
 DEFAULT_WEIGHTS: Dict[str, float] = {
     "business_value": 0.25,
@@ -69,6 +71,20 @@ class LlmKickstartInput:
     current_friction: str
     impacted_department: str
     critical_constraints: str
+
+    def __post_init__(self) -> None:
+        fields = {
+            "strategic_objective": self.strategic_objective,
+            "target_process": self.target_process,
+            "current_friction": self.current_friction,
+            "impacted_department": self.impacted_department,
+            "critical_constraints": self.critical_constraints,
+        }
+        for field_name, value in fields.items():
+            if len(value) > MAX_KICKSTART_FIELD_CHARS:
+                raise ValueError(
+                    f"{field_name} exceeds {MAX_KICKSTART_FIELD_CHARS} characters; provide a short summary only"
+                )
 
 
 @dataclass(slots=True)

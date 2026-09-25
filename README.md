@@ -72,6 +72,7 @@ This repository now includes a runnable core implementation under `src/ai_value_
 - value estimation formulas,
 - optional LLM kickstart service abstraction (with deterministic fallback provider),
 - AMOA implementation-plan document generator,
+- bilingual framework support (French/English),
 - CLI to generate a full AMOA markdown deliverable from JSON input.
 
 ### Quick run
@@ -85,9 +86,15 @@ python -m ai_value_studio.cli --input examples/sample_use_case.json --output out
 ### Tests
 
 ```bash
-python -m unittest discover -s tests -p "test_*.py"
+python -m pytest
 ```
+
+## Operating model
+
+- **Co-editing**: oui, tu peux co-éditer les livrables (wizard output, AMOA, BVA) avec ton équipe puis regénérer une nouvelle version.
+- **Copilot**: utile pour accélérer le dev, pas obligatoire pour l’usage métier du framework.
+- **Hermes Agent**: recommandé pour l’orchestration autonome (analyse, génération, itérations Kaizen), mais non obligatoire pour exécuter le framework localement.
 
 ## Status
 
-Framework v0.1 — reusable consulting assets + runnable core engine foundation.
+Framework v0.1 — reusable consulting assets + runnable core engine foundation (FR/EN + Kaizen roadmap).

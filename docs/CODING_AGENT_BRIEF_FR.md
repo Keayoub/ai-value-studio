@@ -356,6 +356,16 @@ Direction visuelle :
 9. Tester les permissions, les parcours critiques et la génération documentaire.
 10. Ne pas implémenter de fonctionnalités hors périmètre MVP sans décision explicite.
 
+## Kaizen (post-MVP immédiat)
+
+Ajouter une boucle d’amélioration continue par use case :
+
+- comparer KPI réels du pilote aux hypothèses BVA ;
+- capturer les écarts et leurs causes racines ;
+- proposer et prioriser les actions correctives ;
+- relancer scoring + recommandation (Go/Adjust/Defer/Stop) ;
+- versionner AMOA/BVA et conserver la traçabilité des décisions.
+
 ## Définition de Done
 
 Le MVP est terminé lorsque le parcours suivant fonctionne de bout en bout :

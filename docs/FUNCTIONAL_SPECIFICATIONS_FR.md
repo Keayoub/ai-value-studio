@@ -697,6 +697,15 @@ Contraintes :
 - suggestions de KPI ;
 - génération executive summary avec validation humaine.
 
+### Epic 7 — Kaizen & amélioration continue
+
+- revue post-pilot KPI réel vs hypothèses BVA ;
+- analyse des écarts (data, adoption, process, modèle) ;
+- backlog d’actions d’amélioration priorisées ;
+- re-scoring périodique du use case (valeur, faisabilité, risque) ;
+- versioning AMOA/BVA avec historique des décisions ;
+- boucle Decide: Go / Adjust / Defer / Stop.
+
 ## 17. Definition of Done MVP
 
 - Un consultant peut créer un programme complet.

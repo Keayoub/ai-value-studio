@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument("--input", required=True, help="Path to JSON input file")
     parser.add_argument("--output", required=True, help="Path to markdown output")
     parser.add_argument("--kickstart", action="store_true", help="Use LLM kickstart draft")
+    parser.add_argument("--lang", default="fr", choices=["fr", "en"], help="Output language")
     args = parser.parse_args()
 
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
@@ -47,7 +48,7 @@ def main() -> None:
 
     kickstart_out = None
     if args.kickstart:
-        service = KickstartService(RuleBasedKickstartProvider())
+        service = KickstartService(RuleBasedKickstartProvider(language=args.lang))
         kickstart_out = service.kickoff(LlmKickstartInput(**payload["kickstart_input"]))
 
     document = render_amoa_implementation_plan(
@@ -56,6 +57,7 @@ def main() -> None:
         priority_score=priority_score,
         category=category,
         kickstart=kickstart_out,
+        language=args.lang,
     )
 
     Path(args.output).write_text(document, encoding="utf-8")
