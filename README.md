@@ -98,3 +98,14 @@ python -m pytest
 ## Status
 
 Framework v0.1 — reusable consulting assets + runnable core engine foundation (FR/EN + Kaizen roadmap).
+
+## MVP validation
+
+The integrated MVP is validated with:
+
+```bash
+pytest -q
+cd web && npm run lint && npm run build
+```
+
+The Python test suite, web lint, and production build must pass before publishing a release.
