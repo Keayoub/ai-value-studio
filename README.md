@@ -16,10 +16,10 @@ Business discovery → Use case definition → Value assessment → Readiness �
 - Business Value Scorecard
 - AI Portfolio Matrix
 - Executive AI Opportunity Brief
-- AMOA Use Case Implementation Plan (mise en place)
 - Product brief and commercial packaging
 - [Functional specifications](docs/FUNCTIONAL_SPECIFICATIONS_FR.md) for the Web wizard, assessment engine and document generation
 - [Coding agent brief](docs/CODING_AGENT_BRIEF_FR.md) for the MVP implementation scope and acceptance criteria
+- [Implementation plan](docs/IMPLEMENTATION_PLAN.md) for the execution framework and UI
 
 ## Positioning
 
@@ -58,10 +58,11 @@ commercial-assets/
     ├── TIFINIA_AI_VALUE_STUDIO_PRODUCT_BRIEF_FR.md
     └── templates/
         ├── AI_USE_CASE_CANVAS_FR.md
+        ├── AI_USE_CASE_DECISION_PACKAGE_FR.md
         ├── AI_VALUE_SCORECARD_FR.md
         ├── AI_PORTFOLIO_MATRIX_FR.md
         ├── EXECUTIVE_AI_OPPORTUNITY_BRIEF_FR.md
-        └── AMOA_USE_CASE_IMPLEMENTATION_PLAN_FR.md
+        └── IMPLEMENTATION_AND_OPERATION_MODEL_FR.md
 ```
 
 ## Framework implementation (v0.1)
@@ -74,22 +75,6 @@ This repository now includes a runnable core implementation under `src/ai_value_
 - AMOA implementation-plan document generator,
 - bilingual framework support (French/English),
 - CLI to generate a full AMOA markdown deliverable from JSON input.
-
-### Quick run
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
-python -m ai_value_studio.cli --input examples/sample_use_case.json --output outputs/amoa_plan.md --kickstart
-```
-
-### Tests
-
-```bash
-python -m pytest
-```
-
-## Operating model
 
 ## Execution Framework (AI Value Studio Framework)
 
@@ -130,6 +115,7 @@ Centralized control interface featuring:
 - Stop rules
 - Reversible actions
 
+## Operating model
 
 - **Co-editing**: oui, tu peux co-éditer les livrables (wizard output, AMOA, BVA) avec ton équipe puis regénérer une nouvelle version.
 - **Copilot**: utile pour accélérer le dev, pas obligatoire pour l’usage métier du framework.
