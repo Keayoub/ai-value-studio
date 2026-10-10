@@ -1,0 +1,40 @@
+{
+  "use_case_name": "Assistant de Triage IA pour les Urgences",
+  "program_name": "AI Value Discovery Sprint",
+  "scores": [
+    {"dimension": "business_value", "value": 5, "justification": "Volume élevé d'urgences, impact sur la satisfaction"},
+    {"dimension": "current_friction", "value": 4, "justification": "Temps d'attente moyen de 4h, taux de reprise 15%"},
+    {"dimension": "data_feasibility", "value": 4, "justification": "Données d'admission disponibles"},
+    {"dimension": "technical_feasibility", "value": 4, "justification": "Modèles de triage éprouvés"},
+    {"dimension": "adoption_potential", "value": 4, "justification": "Sponsor engagé, personnel ouvert à l'IA"},
+    {"dimension": "risk_governance", "value": 3, "justification": "Risque médical, nécessite validation éthique"}
+  ],
+  "value_inputs": {
+    "annual_volume": 1440,
+    "time_saved_hours": 1.0,
+    "hourly_cost": 100,
+    "error_reduction_rate": 0.10,
+    "average_error_cost": 500,
+    "revenue_capacity_value": 0,
+    "estimated_annual_cost": 120000
+  },
+  "use_case_profile": {
+    "title": "Assistant de Triage IA pour les Urgences",
+    "organization": "Centre Hospitalier Universitaire Demo",
+    "department": "Urgences",
+    "owner": "Directeur des Soins",
+    "problem_statement": "Temps d'attente moyen de 4 heures, taux de reprise de 15% dû à des évaluations incomplètes",
+    "ai_solution": "Assistant IA supervisé pour qualification, recommandation et validation humaine obligatoire",
+    "required_human_validation": "Validation manuelle obligatoire avant décision finale",
+    "key_risks": ["Conformité médicale", "Erreurs de classification"],
+    "dependencies": ["Dossier patient informatique", "Système d'alerte", "Bus d'intégration hospitalier"],
+    "kpis": ["Temps moyen de traitement", "Taux de dossiers complets", "Taux de reprise"]
+  },
+  "kickstart_input": {
+    "strategic_objective": "Réduire les temps d'attente aux urgences de 50%",
+    "target_process": "Triage et prise en charge initiale aux urgences",
+    "current_friction": "Temps d'attente moyen de 4 heures, taux de reprise de 15%",
+    "impacted_department": "Urgences",
+    "critical_constraints": "Respect des protocoles médicaux, formation du personnel limitée, budget contraintes"
+  }
+}

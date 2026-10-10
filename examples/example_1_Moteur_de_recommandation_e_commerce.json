@@ -1,0 +1,77 @@
+{
+  "use_case_name": "Moteur de recommandation e-commerce",
+  "program_name": "AI Value Discovery Sprint",
+  "scores": [
+    {
+      "dimension": "business_value",
+      "value": 5,
+      "justification": "Augmentation moyenne du panier de 15%"
+    },
+    {
+      "dimension": "current_friction",
+      "value": 4,
+      "justification": "Recommandations basiques, faible personnalisation"
+    },
+    {
+      "dimension": "data_feasibility",
+      "value": 5,
+      "justification": "Historique d'achats et de navigation disponible"
+    },
+    {
+      "dimension": "technical_feasibility",
+      "value": 4,
+      "justification": "Modèles de filtrage collaboratif éprouvés"
+    },
+    {
+      "dimension": "adoption_potential",
+      "value": 4,
+      "justification": "Équipe marketing engagée, budget disponible"
+    },
+    {
+      "dimension": "risk_governance",
+      "value": 3,
+      "justification": "Risque de bulle de filtre, besoin de diversité"
+    }
+  ],
+  "value_inputs": {
+    "annual_volume": 1000000,
+    "time_saved_hours": 0.1,
+    "hourly_cost": 50,
+    "error_reduction_rate": 0.1,
+    "average_error_cost": 20,
+    "revenue_capacity_value": 500000,
+    "estimated_annual_cost": 80000
+  },
+  "use_case_profile": {
+    "title": "Moteur de recommandation personnalisée",
+    "organization": "RetailCo Demo",
+    "department": "Marketing Digital",
+    "owner": "Directeur Marketing",
+    "problem_statement": "Les recommandations actuelles sont basées sur des règles simples, entraînant un faible taux de conversion et un panier moyen inférieur aux attentes.",
+    "ai_solution": "Moteur de recommandation basé sur le deep learning (séquentiel + hybride) qui suggère des produits en temps réel en tenant compte du contexte de navigation et de l'historique d'achat.",
+    "required_human_validation": "Validation hebdomadaire des métriques de performance par l'équipe marketing",
+    "key_risks": [
+      "Bias de popularité",
+      "Problème de démarrage froid pour nouveaux produits",
+      "Confidentialité des données"
+    ],
+    "dependencies": [
+      "Plateforme e-commerce",
+      "Data warehouse clientèle",
+      "API de recommandation en temps réel"
+    ],
+    "kpis": [
+      "Taux de conversion",
+      "Panier moyen",
+      "Taux de clic sur recommandation",
+      "Revenue par visite"
+    ]
+  },
+  "kickstart_input": {
+    "strategic_objective": "Augmenter le revenu par visite de 20% d'ici 12 mois",
+    "target_process": "Parcours client sur le site e-commerce, de la page produit au paiement",
+    "current_friction": "Recommandations basiques, faible personnalisation",
+    "impacted_department": "Marketing Digital",
+    "critical_constraints": "Latence inférieure à 200ms, conformité RGPD, coût d'infrastructure limité"
+  }
+}

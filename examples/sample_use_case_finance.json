@@ -1,0 +1,40 @@
+{
+  "use_case_name": "Surveillance IA des Transactions Suspectes",
+  "program_name": "AI Value Discovery Sprint",
+  "scores": [
+    {"dimension": "business_value", "value": 5, "justification": "Volume élevé de transactions, risque financier et réputationnel"},
+    {"dimension": "current_friction", "value": 4, "justification": "Analyse manuelle lente, taux de faux positifs élevé"},
+    {"dimension": "data_feasibility", "value": 5, "justification": "Flux de transactions disponibles en temps réel"},
+    {"dimension": "technical_feasibility", "value": 4, "justification": "Modèles de détection d'anomalies éprouvés"},
+    {"dimension": "adoption_potential", "value": 4, "justification": "Équipe conformité engagée, budget disponible"},
+    {"dimension": "risk_governance", "value": 3, "justification": "Risque de biais, besoin d'explicabilité"}
+  ],
+  "value_inputs": {
+    "annual_volume": 2000000,
+    "time_saved_hours": 0.5,
+    "hourly_cost": 80,
+    "error_reduction_rate": 0.25,
+    "average_error_cost": 1000,
+    "revenue_capacity_value": 0,
+    "estimated_annual_cost": 150000
+  },
+  "use_case_profile": {
+    "title": "Surveillance IA des Transactions Suspectes",
+    "organization": "Banque Demo",
+    "department": "Lutte contre le blanchiment (AML)",
+    "owner": "Responsable Conformité",
+    "problem_statement": "Analyse manuelle lente des transactions, taux de faux positifs élevé entraînant des coûts d'enquête inutile",
+    "ai_solution": "Assistant IA de scoring de risque en temps réel avec explication des facteurs de risque et validation humaine obligatoire pour les alertes critiques",
+    "required_human_validation": "Validation manuelle obligatoire pour les alertes au-dessus d'un seuil de risque",
+    "key_risks": ["Biais algorithmique", "Erreurs de classification (faux positifs/négatifs)", "Conformité réglementaire (RGPD, LCB-FT)"],
+    "dependencies": ["Système de core bancaire", "Outil de gestion des alertes", "Base de données de référence"],
+    "kpis": ["Temps moyen d'analyse par transaction", "Taux de faux positifs", "Nombre d'enquêtes déclenchées", "Coût par enquête"]
+  },
+  "kickstart_input": {
+    "strategic_objective": "Réduire le temps d'analyse de 50% et diminuer les faux positifs de 30%",
+    "target_process": "Analyse initiale des transactions pour détection d'activité suspecte",
+    "current_friction": "Analyse manuelle lente, taux de faux positifs élevé",
+    "impacted_department": "Lutte contre le blanchiment (AML)",
+    "critical_constraints": "Respect des réglementations LCB-FT et RGPD, nécessité d'explicabilité des décisions"
+  }
+}

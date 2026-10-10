@@ -1,0 +1,77 @@
+{
+  "use_case_name": "Maintenance prédictive des machines de ligne d'assemblage",
+  "program_name": "AI Value Discovery Sprint",
+  "scores": [
+    {
+      "dimension": "business_value",
+      "value": 5,
+      "justification": "Réduction des temps d'arrêt non programmés de 40%"
+    },
+    {
+      "dimension": "current_friction",
+      "value": 4,
+      "justification": "Maintenance réactive, pertes de production élevées"
+    },
+    {
+      "dimension": "data_feasibility",
+      "value": 5,
+      "justification": "Données de capteurs (vibration, température, courant) disponibles"
+    },
+    {
+      "dimension": "technical_feasibility",
+      "value": 4,
+      "justification": "Modèles de détection d'anomalies et de reste de vie utile (RUL) éprouvés"
+    },
+    {
+      "dimension": "adoption_potential",
+      "value": 4,
+      "justification": "Équipe maintenance ouverte à l'IA, budget disponible"
+    },
+    {
+      "dimension": "risk_governance",
+      "value": 3,
+      "justification": "Risque de faux positifs entraînant des arrêts inutile"
+    }
+  ],
+  "value_inputs": {
+    "annual_volume": 500,
+    "time_saved_hours": 5.0,
+    "hourly_cost": 200,
+    "error_reduction_rate": 0.4,
+    "average_error_cost": 5000,
+    "revenue_capacity_value": 0,
+    "estimated_annual_cost": 150000
+  },
+  "use_case_profile": {
+    "title": "Maintenance prédictive par IA",
+    "organization": "IndustrieDemo",
+    "department": "Maintenance et Fiabilité",
+    "owner": "Responsable Maintenance",
+    "problem_statement": "Les pannes non planifiées des machines critiques entraînent des pertes de production importantes et des coûts de réparation élevés.",
+    "ai_solution": "Solution d'analyse des signaux de capteurs en temps réel avec modèles d'apprentissage automatique pour prédire les défaillances avant qu'elles ne surviennent, en déclenchant des interventions de maintenance ciblées.",
+    "required_human_validation": "Validation quotidienne des alertes par un technicien de maintenance avant intervention",
+    "key_risks": [
+      "Faux positifs entraînant des maintenances inutiles",
+      "Drift des capteurs nécessitant recalibrage",
+      "Intégration avec le SCADA existant"
+    ],
+    "dependencies": [
+      "SCADA",
+      "Historique des pannes",
+      "Plateforme d'acquisition de données temps réel"
+    ],
+    "kpis": [
+      "Temps moyen entre pannes (MTBF)",
+      "Taux de disponibilité des équipements",
+      "Coût de maintenance par machine",
+      "Nombre d'interventions de maintenance préventive"
+    ]
+  },
+  "kickstart_input": {
+    "strategic_objective": "Réduire les temps d'arrêt non planifiés de 40% d'ici 18 mois",
+    "target_process": "Surveillance et maintenance des machines critiques de la ligne d'assemblage",
+    "current_friction": "Maintenance réactive, pertes de production élevées",
+    "impacted_department": "Maintenance et Fiabilité",
+    "critical_constraints": "Latence de traitement < 5s, conformité aux normes de sécurité industrielle, intégration avec le MES existant"
+  }
+}

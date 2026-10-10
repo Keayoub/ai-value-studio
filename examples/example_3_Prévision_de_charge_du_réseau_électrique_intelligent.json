@@ -1,0 +1,78 @@
+{
+  "use_case_name": "Prévision de charge du réseau électrique intelligent",
+  "program_name": "AI Value Discovery Sprint",
+  "scores": [
+    {
+      "dimension": "business_value",
+      "value": 4,
+      "justification": "Optimisation de la production et réduction des coûts d'équilibrage"
+    },
+    {
+      "dimension": "current_friction",
+      "value": 4,
+      "justification": "Prévisions basées sur des modèles statistiques classiques, erreurs importantes lors des pointes"
+    },
+    {
+      "dimension": "data_feasibility",
+      "value": 5,
+      "justification": "Données historiques de consommation, météo, événements disponibles"
+    },
+    {
+      "dimension": "technical_feasibility",
+      "value": 4,
+      "justification": "Modèles de prévision de séries temporelles (Prophet, LSTM) éprouvés"
+    },
+    {
+      "dimension": "adoption_potential",
+      "value": 4,
+      "justification": "Équipe de gestion de réseau ouverte à l'IA, partenariats avec fournisseurs d'énergie"
+    },
+    {
+      "dimension": "risk_governance",
+      "value": 3,
+      "justification": "Risque de sur- ou sous-estimation pouvant entraîner des pénuries ou des excès coûteux"
+    }
+  ],
+  "value_inputs": {
+    "annual_volume": 365,
+    "time_saved_hours": 2.0,
+    "hourly_cost": 150,
+    "error_reduction_rate": 0.25,
+    "average_error_cost": 1000,
+    "revenue_capacity_value": 0,
+    "estimated_annual_cost": 120000
+  },
+  "use_case_profile": {
+    "title": "Prévision de charge du réseau électrique intelligent",
+    "organization": "EnergieDemo",
+    "department": "Gestion de la Charge et de la Production",
+    "owner": "Responsable de l'Équilibrage",
+    "problem_statement": "Les prévisions de charge actuelles présentent des erreurs importantes lors des variations rapides de consommation (pointes, événements météorologiques), entraînant des coûts d'équilibrage élevés et un risque de pénurie.",
+    "ai_solution": "Modèle de prévision de charge basé sur l'apprentissage automatique qui intègre les données historiques de consommation, les prévisions météo, les événements calendaires et les données de production renouvelable pour fournir des prévisions horaire à jour avec une précision améliorée.",
+    "required_human_validation": "Validation quotidienne des prévisions par l'opérateur de réseau avant envoi aux producteurs",
+    "key_risks": [
+      "Détérioration de la précision en cas de changement soudain de comportement de consommation",
+      "Biais liés aux données historiques",
+      "Intégration avec les systèmes SCADA et EMS existants"
+    ],
+    "dependencies": [
+      "Historique de consommation",
+      "Données météo prévisionnelles",
+      "Données de production renouvelable",
+      "Plateforme de prévision"
+    ],
+    "kpis": [
+      "Erreur moyenne absolue (MAE) de la prévision de charge",
+      "Biais de prévision",
+      "Coût d'équilibrage",
+      "Nombre d'interventions correctives"
+    ]
+  },
+  "kickstart_input": {
+    "strategic_objective": "Réduire l'erreur moyenne absolue de la prévision de charge de 30% d'ici 12 mois",
+    "target_process": "Prévision de la charge électrique du réseau à horizon horaire et journalier",
+    "current_friction": "Prévisions basées sur des modèles statistiques classiques, erreurs importantes lors des pointes",
+    "impacted_department": "Gestion de la Charge et de la Production",
+    "critical_constraints": "Latence de prévision < 15 min, conformité aux exigences du régulateur, capacité de calcul suffisante pour les mises à jour horaires"
+  }
+}

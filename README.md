@@ -91,6 +91,46 @@ python -m pytest
 
 ## Operating model
 
+## Execution Framework (AI Value Studio Framework)
+
+This repository also includes an execution layer framework for building and governing AI agents in enterprise environments, focused on safe, value-driven automation with human oversight.
+
+The execution framework implements a closed-loop agentic AI system with the following phases:
+
+1. **Objective Setting** - Define goals under human supervision
+2. **Information Observation** - Gather relevant data and context
+3. **Multi-step Planning** - Create detailed action plans
+4. **Governed Tool & Data Selection** - Choose approved tools and data sources
+5. **Cross-system Execution** - Perform actions across integrated systems
+6. **Outcome Verification** - Validate results against objectives
+7. **Failure Recovery & Escalation** - Handle errors and exceptions
+8. **Feedback Learning** - Improve future performance
+
+## Human Authority Boundaries
+
+Human review and approval required for:
+- High-impact plans
+- External operations
+- Financial or legal decisions
+- Irreversible changes
+
+## Operator Workspace
+
+Centralized control interface featuring:
+- Request queue
+- Case evidence
+- Recommended plans
+- Approvals
+- Execution receipts
+- Rollback status
+- Stateful memory
+- Least privilege access
+- Audit trail
+- Confidence & uncertainty metrics
+- Stop rules
+- Reversible actions
+
+
 - **Co-editing**: oui, tu peux co-éditer les livrables (wizard output, AMOA, BVA) avec ton équipe puis regénérer une nouvelle version.
 - **Copilot**: utile pour accélérer le dev, pas obligatoire pour l’usage métier du framework.
 - **Hermes Agent**: recommandé pour l’orchestration autonome (analyse, génération, itérations Kaizen), mais non obligatoire pour exécuter le framework localement.

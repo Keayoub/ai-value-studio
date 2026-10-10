@@ -1,0 +1,77 @@
+{
+  "use_case_name": "Détection de fraude dans les prestations sociales",
+  "program_name": "AI Value Discovery Sprint",
+  "scores": [
+    {
+      "dimension": "business_value",
+      "value": 5,
+      "justification": "Économies potentielles de plusieurs millions d'euros par an"
+    },
+    {
+      "dimension": "current_friction",
+      "value": 4,
+      "justification": "Détection basée sur des règles métier simples, nombreux faux négatifs"
+    },
+    {
+      "dimension": "data_feasibility",
+      "value": 5,
+      "justification": "Historique des prestations, données démographiques et déclarations disponibles"
+    },
+    {
+      "dimension": "technical_feasibility",
+      "value": 4,
+      "justification": "Modèles de détection d'anomalies et de scoring de risque éprouvés"
+    },
+    {
+      "dimension": "adoption_potential",
+      "value": 4,
+      "justification": "Agence ouverte à l'IA, budget disponible pour pilote"
+    },
+    {
+      "dimension": "risk_governance",
+      "value": 3,
+      "justification": "Risque de biais algorithmiques pouvant entraîner des discriminations injustes"
+    }
+  ],
+  "value_inputs": {
+    "annual_volume": 2000000,
+    "time_saved_hours": 0.05,
+    "hourly_cost": 80,
+    "error_reduction_rate": 0.2,
+    "average_error_cost": 500,
+    "revenue_capacity_value": 0,
+    "estimated_annual_cost": 250000
+  },
+  "use_case_profile": {
+    "title": "Détection de fraude dans les prestations sociales",
+    "organization": "AgenceSociale Demo",
+    "department": "Lutte contre la Fraude",
+    "owner": "Directeur de la Lutte contre la Fraude",
+    "problem_statement": "Les prestations sociales sont parfois attribuées à tort en raison de fausses déclarations ou de dissimulation de revenus, entraînant des pertes financières importantes pour l'État.",
+    "ai_solution": "Système de notation de risque basé sur l'apprentissage automatique qui analyse les déclarations, l'historique des prestations, les données démographiques et les signaux externes pour attribuer un score de fraude à chaque demande, en déclenchant une enquête ciblée pour les scores élevés.",
+    "required_human_validation": "Validation manuelle obligatoire des alertes à haut risque par un enquêteur avant toute décision de suspension ou de récupération",
+    "key_risks": [
+      "Biais algorithmiques pouvant entraîner des discriminations",
+      "Évolution des schémas de fraude nécessitant une ré-entraînement régulière",
+      "Protection des données personnelles (RGPD)"
+    ],
+    "dependencies": [
+      "Système d'information des prestations",
+      "Base de données des fraudes connues",
+      "API de vérification d'identité"
+    ],
+    "kpis": [
+      "Taux de détection de la fraude",
+      "Taux de faux positifs",
+      "Coût moyen d'une enquête",
+      "Montant récupéré"
+    ]
+  },
+  "kickstart_input": {
+    "strategic_objective": "Réduire le montant de la fraude non détectée de 25% d'ici 18 mois",
+    "target_process": "Instruction et versement des prestations sociales",
+    "current_friction": "Détection basée sur des règles métier simples, nombreux faux négatifs",
+    "impacted_department": "Lutte contre la Fraude",
+    "critical_constraints": "Latence de traitement < 2s, conformité au RGPD, explicabilité des décisions requise pour les contrôles"
+  }
+}
