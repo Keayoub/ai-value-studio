@@ -146,3 +146,20 @@ Based on the "Agentic AI in the Enterprise" flowchart, this document maps each c
 3. Établir les politiques de gouvernance par défaut
 4. Développer l'interface de l'opérateur workspace
 5. Créer des scénarios de test complets couvrant les cas d'usage typiques et exceptionnels
+
+
+## Input attendu du framework d'exécution
+
+Pour exécuter un use case IA de façon sûre et gouvernée, le AI Value Studio Framework nécessite en entrée un **Modèle d'Implémentation et d'Exploitation** complet (voir `commercial-assets/product-frameworks/templates/IMPLEMENTATION_AND_OPERATION_MODEL_FR.md`). Ce modèle doit être élaboré après la décision AMOA de "Go" ou "Pilot" et spécifie :
+
+- Les objectifs opérationnels détaillés
+- Les spécifications fonctionnelles (flux de données, entrées/sorties, décisions soutenues)
+- L'architecture technique et les intégrations requises
+- Le plan de déploiement opérationnel avec phases et critères d'avancement
+- La gouvernance, les rôles et les responsabilités (RACI)
+- Les exigences de sécurité, de conformité et de garde-fous
+- Les exigences de traçabilité et d'audit
+- Le plan de surveillance, de maintenance et d'amélioration continue
+- Les critères d'acceptation et de Go/No-Go
+
+Ce document constitue la spécification technique qui alimente directement chaque composant du framework d'exécution décrit dans la section précédente.
