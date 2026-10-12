@@ -26,6 +26,13 @@ class DocumentStorageDriver(StrEnum):
     AZURE = "azure"
 
 
+class LlmProviderKind(StrEnum):
+    OPENAI = "openai"
+    AZURE_OPENAI = "azure_openai"
+    ANTHROPIC = "anthropic"
+    FAKE = "fake"
+
+
 def _split_csv(raw_value: str | list[str] | tuple[str, ...]) -> list[str]:
     if isinstance(raw_value, (list, tuple)):
         values = [str(item).strip() for item in raw_value if str(item).strip()]
@@ -79,6 +86,20 @@ class Settings(BaseSettings):
         default="~/.local/state/ai-value-studio/documents",
         alias="DOCUMENT_STORAGE_PATH",
     )
+    llm_provider: LlmProviderKind = LlmProviderKind.OPENAI
+    llm_request_timeout_seconds: float = 20.0
+    llm_rate_limit_requests: int = 6
+    llm_rate_limit_window_seconds: int = 3600
+    llm_circuit_breaker_failures: int = 3
+    llm_circuit_breaker_open_seconds: int = 300
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4.1-mini"
+    azure_openai_api_key: str | None = None
+    azure_openai_endpoint: str | None = None
+    azure_openai_deployment_name: str | None = None
+    azure_openai_api_version: str = "2024-10-21"
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-3-5-sonnet-latest"
 
     @model_validator(mode="after")
     def validate_runtime_rules(self) -> Settings:
@@ -123,6 +144,19 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "DOCUMENT_STORAGE_PATH must point outside the repository worktree."
                 )
+
+        if self.llm_request_timeout_seconds <= 0:
+            raise ValueError("LLM_REQUEST_TIMEOUT_SECONDS must be greater than zero.")
+        if self.llm_rate_limit_requests < 1:
+            raise ValueError("LLM_RATE_LIMIT_REQUESTS must be greater than zero.")
+        if self.llm_rate_limit_window_seconds < 1:
+            raise ValueError("LLM_RATE_LIMIT_WINDOW_SECONDS must be greater than zero.")
+        if self.llm_circuit_breaker_failures < 1:
+            raise ValueError("LLM_CIRCUIT_BREAKER_FAILURES must be greater than zero.")
+        if self.llm_circuit_breaker_open_seconds < 1:
+            raise ValueError("LLM_CIRCUIT_BREAKER_OPEN_SECONDS must be greater than zero.")
+        if self.llm_provider == LlmProviderKind.FAKE and self.app_env != AppEnv.TEST:
+            raise ValueError("LLM_PROVIDER=fake is only allowed when APP_ENV is test.")
 
         return self
 

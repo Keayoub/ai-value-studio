@@ -201,6 +201,20 @@ class WizardService:
         )
         return self._build_envelope(bundle)
 
+    def load_assessment_bundle(
+        self,
+        *,
+        assessment_id: uuid.UUID | str,
+        expected_use_case_id: uuid.UUID,
+    ) -> AssessmentBundle:
+        parsed_assessment_id = (
+            assessment_id if isinstance(assessment_id, uuid.UUID) else uuid.UUID(str(assessment_id))
+        )
+        return self._load_assessment_bundle(
+            parsed_assessment_id,
+            expected_use_case_id=expected_use_case_id,
+        )
+
     def upsert_answer(
         self,
         *,
@@ -253,6 +267,14 @@ class WizardService:
             else None
         )
         captured_for = self._resolve_captured_for(bundle.assessment, payload)
+        next_source = self._resolve_answer_source(payload)
+        if answer is not None:
+            self._ensure_ai_assisted_overwrite_allowed(
+                answer=answer,
+                next_value=value,
+                next_source=next_source,
+                confirmed=payload.confirm_overwrite_ai_assisted,
+            )
         if answer is None:
             answer = Answer(
                 workspace_id=bundle.assessment.workspace_id,
@@ -263,7 +285,7 @@ class WizardService:
                 confidence=payload.confidence,
                 entered_by_subject_id=self._actor_subject_id(),
                 captured_for_membership_id=captured_for,
-                source=AnswerSource.HUMAN,
+                source=next_source,
             )
         else:
             answer.value_data_json = value
@@ -271,7 +293,7 @@ class WizardService:
             answer.confidence = payload.confidence
             answer.entered_by_subject_id = self._actor_subject_id()
             answer.captured_for_membership_id = captured_for
-            answer.source = AnswerSource.HUMAN
+            answer.source = next_source
             answer.updated_at = datetime.now(UTC)
         self.session.add(answer)
         self.session.flush()
@@ -290,6 +312,7 @@ class WizardService:
                 "captured_for_membership_id": str(answer.captured_for_membership_id)
                 if answer.captured_for_membership_id
                 else None,
+                "source": answer.source,
             },
             metadata={"assessment_id": str(bundle.assessment.id)},
         )
@@ -1005,6 +1028,34 @@ class WizardService:
                 detail="Interview respondent membership not found in this workspace.",
             )
         return captured_for
+
+    def _resolve_answer_source(self, payload: AnswerUpsertRequest) -> AnswerSource:
+        return payload.source or AnswerSource.HUMAN
+
+    def _ensure_ai_assisted_overwrite_allowed(
+        self,
+        *,
+        answer: Answer,
+        next_value: JsonValue,
+        next_source: AnswerSource,
+        confirmed: bool,
+    ) -> None:
+        if next_source != AnswerSource.AI_ASSISTED:
+            return
+        if answer.source == AnswerSource.AI_ASSISTED:
+            return
+        if self._coerce_json_value(answer.value_data_json) == next_value:
+            return
+        if confirmed:
+            return
+        raise AppError(
+            status_code=409,
+            title="Conflict",
+            detail=(
+                "An existing human answer would be replaced by an AI-assisted suggestion. "
+                "Confirm the overwrite before applying it."
+            ),
+        )
 
     def _ensure_management_role(self, *, action: str) -> None:
         role = ProductRole(self.context.membership.role)

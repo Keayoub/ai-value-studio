@@ -13,7 +13,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "cd .. && mkdir -p web/test-results && rm -f web/test-results/playwright-dev.db && export APP_ENV=local AUTH_MODE=dev DEBUG=true DATABASE_URL=sqlite:///../web/test-results/playwright-dev.db CORS_ALLOWED_ORIGINS=http://127.0.0.1:3100,http://localhost:3100 && cd backend && PYTHONPATH=. ../.venv/bin/alembic -c alembic.ini upgrade head && PYTHONPATH=. ../.venv/bin/python scripts/dev_seed.py && PYTHONPATH=. ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8010",
+        "cd .. && mkdir -p web/test-results && rm -f web/test-results/playwright-dev.db && export APP_ENV=test AUTH_MODE=dev DEBUG=true LLM_PROVIDER=fake DATABASE_URL=sqlite:///../web/test-results/playwright-dev.db CORS_ALLOWED_ORIGINS=http://127.0.0.1:3100,http://localhost:3100 && cd backend && PYTHONPATH=. ../.venv/bin/alembic -c alembic.ini upgrade head && PYTHONPATH=. ../.venv/bin/python scripts/dev_seed.py && PYTHONPATH=. ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8010",
       port: 8010,
       reuseExistingServer: false,
       timeout: 120_000,

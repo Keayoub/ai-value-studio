@@ -50,6 +50,11 @@ export type WorkspaceSummary = {
   } | null;
   confidentiality_policy: string;
   status: "active" | "archived";
+  ai_assistance_enabled: boolean;
+  ai_assistance_available: boolean;
+  ai_assistance_consent_at: string | null;
+  ai_assistance_consent_by_subject_id: string | null;
+  ai_assistance_data_processing_note: string | null;
   created_by_subject_id: string;
   created_at: string;
   updated_at: string;
@@ -492,6 +497,23 @@ export type AssessmentEnvelope = {
   derived: DerivedAssessmentState;
   validation: StepValidationResponse[];
   hypotheses: Hypothesis[];
+};
+
+export type KickstartProposal = {
+  source: "ai_assisted";
+  problem_statement: string;
+  ai_solution: string;
+  kpi_proposals: string[];
+  value_hypotheses: string[];
+  risks: string[];
+  missing_info: string[];
+};
+
+export type KickstartSuggestion = {
+  proposal: KickstartProposal;
+  provider: string;
+  model: string;
+  generated_at: string;
 };
 
 export type WizardAnswerResponse = {

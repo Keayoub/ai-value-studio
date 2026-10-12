@@ -33,3 +33,4 @@ def load_metadata() -> None:
     from app.db.models import identity as _identity_models  # noqa: F401
     from app.db.models import lifecycle as _lifecycle_models  # noqa: F401
     from app.db.models import workspace as _workspace_models  # noqa: F401
+    from app.llm import models as _llm_models  # noqa: F401

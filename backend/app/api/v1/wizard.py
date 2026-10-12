@@ -11,6 +11,8 @@ from app.db.session import (
     set_postgres_workspace,
     set_postgres_workspace_verified,
 )
+from app.llm.schemas import KickstartSuggestionResponse
+from app.llm.service import LlmAssistanceService
 from app.schemas.wizard import (
     AnswerResponse,
     AnswerUpsertRequest,
@@ -181,6 +183,48 @@ def upsert_assessment_answer(
     session.commit()
     _refresh_session_scope(session, auth_context, workspace_id)
     return response
+
+
+@router.post(
+    "/workspaces/{workspace_id}/programs/{program_id}/use-cases/{use_case_id}/assessments/{assessment_id}/kickstart",
+    response_model=KickstartSuggestionResponse,
+)
+def generate_assessment_kickstart(
+    workspace_id: uuid.UUID,
+    program_id: uuid.UUID,
+    use_case_id: uuid.UUID,
+    assessment_id: uuid.UUID,
+    request: Request,
+    auth_context: AuthContextDependency,
+    session: SessionDependency,
+) -> KickstartSuggestionResponse:
+    repository, use_case = _resolve_program_and_use_case(
+        session=session,
+        auth_context=auth_context,
+        workspace_id=workspace_id,
+        program_id=program_id,
+        use_case_id=use_case_id,
+    )
+    program = repository.get_program(program_id)
+    if program is None:
+        raise AppError(status_code=404, title="Not Found", detail="Program not found.")
+
+    response = LlmAssistanceService(
+        session, repository.context, str(request.state.request_id)
+    )
+    try:
+        result = response.generate_kickstart(
+            assessment_id=str(assessment_id),
+            expected_use_case_id=use_case.id,
+            program=program,
+            use_case=use_case,
+        )
+    except AppError:
+        session.commit()
+        raise
+    session.commit()
+    _refresh_session_scope(session, auth_context, workspace_id)
+    return result
 
 
 @router.post(

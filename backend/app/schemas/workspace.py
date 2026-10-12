@@ -55,6 +55,8 @@ class WorkspaceUpdateRequest(BaseModel):
     branding_json: WorkspaceBranding | None = None
     confidentiality_policy: WorkspaceConfidentialityPolicy | None = None
     status: WorkspaceStatus | None = None
+    ai_assistance_enabled: bool | None = None
+    ai_assistance_data_processing_note: str | None = Field(default=None, max_length=2000)
 
     @field_validator("default_language")
     @classmethod
@@ -80,6 +82,11 @@ class WorkspaceResponse(BaseModel):
     branding_json: WorkspaceBranding | None = None
     confidentiality_policy: WorkspaceConfidentialityPolicy
     status: WorkspaceStatus
+    ai_assistance_enabled: bool
+    ai_assistance_available: bool
+    ai_assistance_consent_at: datetime | None = None
+    ai_assistance_consent_by_subject_id: uuid.UUID | None = None
+    ai_assistance_data_processing_note: str | None = None
     created_by_subject_id: uuid.UUID
     created_at: datetime
     updated_at: datetime

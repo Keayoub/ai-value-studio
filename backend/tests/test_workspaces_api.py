@@ -220,6 +220,67 @@ def test_role_claim_downgrade_cannot_retain_workspace_admin_permissions(
     assert members_list_response.status_code == 403
 
 
+def test_workspace_admin_enabling_ai_assistance_records_consent_details(
+    dev_client,
+    seeded_workspace_data,
+) -> None:
+    workspace_a_id = seeded_workspace_data["workspace_a_id"]
+    note = "Résumé métier approuvé pour assistance IA, sans PII ni secret."
+
+    patch_response = dev_client.patch(
+        f"/api/v1/workspaces/{workspace_a_id}",
+        json={
+            "ai_assistance_enabled": True,
+            "ai_assistance_data_processing_note": note,
+        },
+        headers=dev_headers("actor", roles="WorkspaceAdmin"),
+    )
+
+    assert patch_response.status_code == 200
+    body = patch_response.json()
+    assert body["ai_assistance_enabled"] is True
+    assert body["ai_assistance_data_processing_note"] == note
+    assert body["ai_assistance_consent_at"]
+    assert body["ai_assistance_consent_by_subject_id"]
+
+    with Session(get_engine()) as session:
+        audit_event = session.exec(
+            select(AuditEvent)
+            .where(
+                AuditEvent.action == "workspace.updated",
+                AuditEvent.entity_id == str(workspace_a_id),
+            )
+            .order_by(AuditEvent.occurred_at.desc())
+        ).first()
+
+    assert audit_event is not None
+    assert audit_event.metadata_json == {
+        "changed_fields": [
+            "ai_assistance_data_processing_note",
+            "ai_assistance_enabled",
+        ]
+    }
+
+
+def test_non_admin_cannot_enable_ai_assistance(
+    dev_client,
+    seeded_workspace_data,
+) -> None:
+    workspace_a_id = seeded_workspace_data["workspace_a_id"]
+
+    response = dev_client.patch(
+        f"/api/v1/workspaces/{workspace_a_id}",
+        json={
+            "ai_assistance_enabled": True,
+            "ai_assistance_data_processing_note": "Denied attempt",
+        },
+        headers=dev_headers("actor", roles="Consultant"),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Insufficient workspace permissions."
+
+
 def test_audit_events_record_each_mutation(dev_client) -> None:
     workspace_response = dev_client.post(
         "/api/v1/workspaces",

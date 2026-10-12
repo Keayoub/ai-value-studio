@@ -770,6 +770,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                 key={`wizard:${selectedUseCase.id}:${selectedUseCase.status}:${selectedUseCase.current_assessment_version ?? 0}`}
                 workspaceId={workspaceId}
                 programId={programId}
+                workspace={workspace}
                 useCase={selectedUseCase}
                 members={members}
                 locale={language}

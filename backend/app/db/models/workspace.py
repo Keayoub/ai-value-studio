@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from enum import StrEnum
 
 from app.db.base import TimestampedModel, UUIDPrimaryKeyModel
-from sqlalchemy import JSON, Column, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -50,6 +51,21 @@ class WorkspaceBase(SQLModel):
         max_length=32,
     )
     status: WorkspaceStatus = Field(default=WorkspaceStatus.ACTIVE)
+    ai_assistance_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, default=False),
+    )
+    ai_assistance_consent_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),
+    )
+    ai_assistance_consent_by_subject_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="identity_subjects.id",
+        nullable=True,
+        index=True,
+    )
+    ai_assistance_data_processing_note: str | None = Field(default=None, max_length=2000)
 
 
 class Workspace(WorkspaceBase, UUIDPrimaryKeyModel, TimestampedModel, table=True):

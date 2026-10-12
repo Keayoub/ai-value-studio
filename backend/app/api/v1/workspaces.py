@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from app.api.v1.errors import AppError
@@ -14,8 +15,13 @@ from app.db.session import (
     set_postgres_workspace_create_allowed,
     set_postgres_workspace_verified,
 )
+from app.llm.service import llm_provider_is_configured
 from app.schemas.common import CursorPageResponse
-from app.schemas.workspace import WorkspaceCreateRequest, WorkspaceResponse, WorkspaceUpdateRequest
+from app.schemas.workspace import (
+    WorkspaceCreateRequest,
+    WorkspaceResponse,
+    WorkspaceUpdateRequest,
+)
 from app.security.auth import AuthContext, get_auth_context
 from app.security.roles import Permission, ProductRole, has_elevated_workspace_role
 from app.security.tenancy import (
@@ -45,6 +51,11 @@ def _serialize_workspace(
         branding_json=workspace.branding_json,
         confidentiality_policy=workspace.confidentiality_policy,
         status=workspace.status,
+        ai_assistance_enabled=workspace.ai_assistance_enabled,
+        ai_assistance_available=llm_provider_is_configured(),
+        ai_assistance_consent_at=workspace.ai_assistance_consent_at,
+        ai_assistance_consent_by_subject_id=workspace.ai_assistance_consent_by_subject_id,
+        ai_assistance_data_processing_note=workspace.ai_assistance_data_processing_note,
         created_by_subject_id=workspace.created_by_subject_id,
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
@@ -187,8 +198,40 @@ def update_workspace(
         "name": context.workspace.name,
         "description": context.workspace.description,
         "status": context.workspace.status,
+        "ai_assistance_enabled": context.workspace.ai_assistance_enabled,
+        "ai_assistance_data_processing_note": context.workspace.ai_assistance_data_processing_note,
     }
     changes = payload.model_dump(exclude_unset=True)
+    ai_enabled_changed = "ai_assistance_enabled" in changes
+    ai_note_changed = "ai_assistance_data_processing_note" in changes
+    if ai_enabled_changed or ai_note_changed:
+        if context.membership.role != ProductRole.WORKSPACE_ADMIN.value:
+            raise AppError(
+                status_code=403,
+                title="Forbidden",
+                detail="Only a workspace administrator can change AI assistance settings.",
+            )
+        next_enabled = changes.get("ai_assistance_enabled", context.workspace.ai_assistance_enabled)
+        next_note = changes.get(
+            "ai_assistance_data_processing_note",
+            context.workspace.ai_assistance_data_processing_note,
+        )
+        if next_enabled and not (next_note or "").strip():
+            raise AppError(
+                status_code=422,
+                title="Validation Error",
+                detail=(
+                    "Enabling AI assistance requires a data-processing note describing the "
+                    "approved business summary shared with the provider."
+                ),
+            )
+        if next_enabled and not context.workspace.ai_assistance_enabled:
+            if context.actor.identity_subject_id is None:
+                raise AppError(status_code=401, title="Unauthorized", detail="Identity missing.")
+            context.workspace.ai_assistance_consent_at = datetime.now(UTC)
+            context.workspace.ai_assistance_consent_by_subject_id = (
+                context.actor.identity_subject_id
+            )
     for key, value in changes.items():
         setattr(context.workspace, key, value)
 
@@ -204,6 +247,10 @@ def update_workspace(
             "name": context.workspace.name,
             "description": context.workspace.description,
             "status": context.workspace.status,
+            "ai_assistance_enabled": context.workspace.ai_assistance_enabled,
+            "ai_assistance_data_processing_note": (
+                context.workspace.ai_assistance_data_processing_note
+            ),
         },
         metadata={"changed_fields": sorted(changes)},
     )

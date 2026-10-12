@@ -42,6 +42,34 @@ export type WizardCopy = {
   currentStep: string;
   kickstartTitle: string;
   kickstartDescription: string;
+  kickstartReadyDescription: string;
+  kickstartDisabledExplanation: string;
+  kickstartUnavailableExplanation: string;
+  kickstartConsultantOnlyExplanation: string;
+  kickstartDraftOnlyExplanation: string;
+  kickstartGenerate: string;
+  kickstartGenerating: string;
+  kickstartGeneratedAt: string;
+  kickstartNoProposal: string;
+  kickstartCurrentAnswer: string;
+  kickstartProposal: string;
+  kickstartAccept: string;
+  kickstartIgnore: string;
+  kickstartIgnored: string;
+  kickstartReviewAgain: string;
+  kickstartApplied: string;
+  kickstartOverwriteTitle: string;
+  kickstartOverwriteDescription: string;
+  kickstartConfirmOverwrite: string;
+  kickstartCancelOverwrite: string;
+  kickstartNoAnswer: string;
+  kickstartKpiHint: string;
+  kickstartProblemStatement: string;
+  kickstartAiSolution: string;
+  kickstartKpiProposals: string;
+  kickstartValueHypotheses: string;
+  kickstartRisks: string;
+  kickstartMissingInfoTitle: string;
   recommendationSummary: string;
   submittedVersion: string;
   questionRequired: string;
@@ -103,7 +131,43 @@ export const wizardCopy: Record<Locale, WizardCopy> = {
     currentStep: "Étape en cours",
     kickstartTitle: "Kickstart IA",
     kickstartDescription:
-      "Optionnel — l’assistance IA n’est pas disponible dans cette version. Aucune suggestion n’est simulée.",
+      "Préparez une proposition IA éditable sans modifier automatiquement les réponses existantes.",
+    kickstartReadyDescription:
+      "Générez une proposition puis acceptez, modifiez ou ignorez chaque champ avant tout enregistrement.",
+    kickstartDisabledExplanation:
+      "L’assistance IA est désactivée pour cet espace. Un administrateur doit l’activer avant toute génération.",
+    kickstartUnavailableExplanation:
+      "L’assistance IA est activée pour cet espace, mais aucun fournisseur n’est configuré côté serveur pour le moment.",
+    kickstartConsultantOnlyExplanation:
+      "La génération de proposition IA est réservée au consultant affecté à cette version.",
+    kickstartDraftOnlyExplanation:
+      "La génération de proposition IA n’est disponible que sur la version brouillon en cours.",
+    kickstartGenerate: "Générer une proposition IA",
+    kickstartGenerating: "Génération de la proposition IA…",
+    kickstartGeneratedAt: "Proposition générée à",
+    kickstartNoProposal:
+      "Aucune proposition générée pour le moment. Les réponses existantes restent inchangées jusqu’à acceptation explicite.",
+    kickstartCurrentAnswer: "Réponse actuelle",
+    kickstartProposal: "Proposition IA éditable",
+    kickstartAccept: "Accepter cette proposition",
+    kickstartIgnore: "Ignorer",
+    kickstartIgnored: "Proposition ignorée pour ce champ.",
+    kickstartReviewAgain: "Réexaminer la proposition",
+    kickstartApplied: "Suggestion enregistrée comme réponse assistée par IA.",
+    kickstartOverwriteTitle: "Confirmer le remplacement de la réponse actuelle",
+    kickstartOverwriteDescription:
+      "Cette action remplacera la réponse existante par une suggestion assistée par IA pour ce champ uniquement.",
+    kickstartConfirmOverwrite: "Confirmer le remplacement",
+    kickstartCancelOverwrite: "Annuler",
+    kickstartNoAnswer: "Aucune réponse enregistrée",
+    kickstartKpiHint:
+      "Les propositions seront enregistrées dans le champ KPI principal sous forme d’une liste séparée par des points-virgules.",
+    kickstartProblemStatement: "Problème",
+    kickstartAiSolution: "Solution IA",
+    kickstartKpiProposals: "Propositions de KPI",
+    kickstartValueHypotheses: "Hypothèses de valeur",
+    kickstartRisks: "Risques",
+    kickstartMissingInfoTitle: "Informations manquantes",
     recommendationSummary: "Résumé de la recommandation",
     submittedVersion: "Version soumise",
     questionRequired: "obligatoire",
@@ -162,7 +226,43 @@ export const wizardCopy: Record<Locale, WizardCopy> = {
     currentStep: "Current step",
     kickstartTitle: "AI kickstart",
     kickstartDescription:
-      "Optional — AI assistance is unavailable in this release. No suggestion is simulated.",
+      "Prepare an editable AI proposal without automatically changing existing answers.",
+    kickstartReadyDescription:
+      "Generate a proposal, then accept, edit, or ignore each field before anything is saved.",
+    kickstartDisabledExplanation:
+      "AI assistance is disabled for this workspace. An administrator must enable it before generation is allowed.",
+    kickstartUnavailableExplanation:
+      "AI assistance is enabled for this workspace, but no server-side provider is configured right now.",
+    kickstartConsultantOnlyExplanation:
+      "AI proposal generation is limited to the consultant assigned to this draft.",
+    kickstartDraftOnlyExplanation:
+      "AI proposal generation is available only for the current draft assessment version.",
+    kickstartGenerate: "Generate AI proposal",
+    kickstartGenerating: "Generating AI proposal…",
+    kickstartGeneratedAt: "Proposal generated at",
+    kickstartNoProposal:
+      "No proposal has been generated yet. Existing answers stay unchanged until you explicitly accept a field.",
+    kickstartCurrentAnswer: "Current answer",
+    kickstartProposal: "Editable AI proposal",
+    kickstartAccept: "Accept this proposal",
+    kickstartIgnore: "Ignore",
+    kickstartIgnored: "Proposal ignored for this field.",
+    kickstartReviewAgain: "Review the proposal again",
+    kickstartApplied: "Suggestion saved as an AI-assisted answer.",
+    kickstartOverwriteTitle: "Confirm replacing the current answer",
+    kickstartOverwriteDescription:
+      "This replaces the existing answer with an AI-assisted suggestion for this field only.",
+    kickstartConfirmOverwrite: "Confirm replacement",
+    kickstartCancelOverwrite: "Cancel",
+    kickstartNoAnswer: "No saved answer",
+    kickstartKpiHint:
+      "The proposals will be saved into the primary KPI field as a semicolon-separated list.",
+    kickstartProblemStatement: "Problem statement",
+    kickstartAiSolution: "AI solution",
+    kickstartKpiProposals: "KPI proposals",
+    kickstartValueHypotheses: "Value hypotheses",
+    kickstartRisks: "Risks",
+    kickstartMissingInfoTitle: "Missing information",
     recommendationSummary: "Recommendation summary",
     submittedVersion: "Submitted version",
     questionRequired: "required",

@@ -5,8 +5,10 @@ import {
   expect,
   test,
   type APIRequestContext,
+  type Locator,
   type Page,
 } from "@playwright/test";
+import type { KickstartSuggestion } from "@/features/api/types";
 
 type DevRole = "Consultant" | "WorkspaceAdmin" | "Sponsor" | "Contributor";
 
@@ -45,7 +47,25 @@ const CREATE_DRAFT_LABEL =
   /Créer un brouillon d’évaluation|Create draft assessment/;
 const CONTINUE_LABEL = /Continuer|Continue/;
 const KICKSTART_TITLE = /Kickstart IA|AI kickstart/;
-const UNAVAILABLE_TEXT = /Indisponible|Unavailable/;
+const KICKSTART_DISABLED_TEXT =
+  /L’assistance IA est désactivée pour cet espace|AI assistance is disabled for this workspace/;
+const GENERATE_KICKSTART_LABEL =
+  /Générer une proposition IA|Generate AI proposal/;
+const KICKSTART_APPLIED_TEXT =
+  /Suggestion enregistrée comme réponse assistée par IA|Suggestion saved as an AI-assisted answer/;
+const KICKSTART_CONFIRM_TITLE =
+  /Confirmer le remplacement de la réponse actuelle|Confirm replacing the current answer/;
+const KICKSTART_CONFIRM_BUTTON =
+  /Confirmer le remplacement|Confirm replacement/;
+const KICKSTART_IGNORED_TEXT =
+  /Proposition ignorée pour ce champ\.|Proposal ignored for this field\./;
+const KICKSTART_PROBLEM_HEADING = /Problème|Problem statement/;
+const KICKSTART_KPI_HEADING = /Propositions de KPI|KPI proposals/;
+const KICKSTART_RISKS_HEADING = /Risques|Risks/;
+const KICKSTART_PROBLEM_PROPOSAL_LABEL =
+  /Problème — Proposition IA éditable|Problem statement — Editable AI proposal/;
+const KICKSTART_KPI_PROPOSAL_LABEL =
+  /Propositions de KPI — Proposition IA éditable|KPI proposals — Editable AI proposal/;
 const INTERVIEW_MODE_LABEL = /Mode entretien|Interview mode/;
 const RESPONDENT_LABEL = /Répondant|Respondent/;
 const INTERVIEW_ACTIVE_TEXT = /Mode entretien actif|Interview mode active/;
@@ -85,6 +105,7 @@ const REVENUE_CAPACITY_LABEL =
 const OVERRIDE_REASON_LABEL = /Raison de la surcharge|Override reason/;
 const REQUEST_INFORMATION_LIMITATION_TEXT =
   /Cette action reste indisponible tant qu’aucune API autorisée ne peut enregistrer une demande d’informations\.|This action stays unavailable until an authorized API can persist an information request\./;
+const AI_ASSISTED_TEXT = /^(Assisté par IA|AI-assisted)$/;
 
 function formatApiFailureBody(bodyText: string) {
   if (!bodyText) {
@@ -150,6 +171,41 @@ async function proxyApiRequests(page: Page, request: APIRequestContext) {
       apiOnline = true;
     },
   };
+}
+
+async function setWorkspaceAiAssistance(
+  request: APIRequestContext,
+  {
+    workspaceId,
+    headers,
+    enabled,
+    note,
+  }: {
+    workspaceId: string;
+    headers: Record<string, string>;
+    enabled: boolean;
+    note: string;
+  },
+) {
+  const response = await request.patch(
+    `http://127.0.0.1:8010/api/v1/workspaces/${workspaceId}`,
+    {
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+      },
+      data: {
+        ai_assistance_enabled: enabled,
+        ai_assistance_data_processing_note: note,
+      },
+    },
+  );
+  return expectApiJson<{
+    ai_assistance_enabled: boolean;
+    ai_assistance_available: boolean;
+    ai_assistance_consent_at: string | null;
+    ai_assistance_data_processing_note: string | null;
+  }>(response, "Updating workspace AI assistance");
 }
 
 async function selectDevIdentity(
@@ -302,6 +358,56 @@ async function bootstrapUseCase(
   } satisfies BootstrapResult;
 }
 
+async function createDraftAssessment(
+  request: APIRequestContext,
+  bootstrap: BootstrapResult,
+  headers: Record<string, string>,
+) {
+  const response = await request.post(
+    `http://127.0.0.1:8010/api/v1/workspaces/${bootstrap.workspaceId}/programs/${bootstrap.programId}/use-cases/${bootstrap.useCaseId}/assessments`,
+    {
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+      },
+      data: {},
+    },
+  );
+  return expectApiJson<{ assessment: { id: string } }>(response, "Creating draft assessment");
+}
+
+async function seedAssessmentAnswers(
+  request: APIRequestContext,
+  {
+    bootstrap,
+    assessmentId,
+    headers,
+    answers,
+  }: {
+    bootstrap: BootstrapResult;
+    assessmentId: string;
+    headers: Record<string, string>;
+    answers: Record<string, string>;
+  },
+) {
+  for (const [questionKey, value] of Object.entries(answers)) {
+    const response = await request.put(
+      `http://127.0.0.1:8010/api/v1/workspaces/${bootstrap.workspaceId}/programs/${bootstrap.programId}/use-cases/${bootstrap.useCaseId}/assessments/${assessmentId}/answers/${questionKey}`,
+      {
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+        },
+        data: {
+          value,
+          source: "human",
+        },
+      },
+    );
+    await expectApiOk(response, `Seeding answer ${questionKey}`);
+  }
+}
+
 async function expectNoTaggedAxeViolations(
   page: Page,
   options: { allowRuleIds?: string[] } = {},
@@ -324,6 +430,12 @@ function numberPattern(value: number) {
   const head = digits.slice(0, -3);
   const tail = digits.slice(-3);
   return new RegExp(`${head}[\\s,.  ]?${tail}`);
+}
+
+function kickstartCard(page: Page, headingName: RegExp): Locator {
+  return page
+    .getByRole("heading", { name: headingName })
+    .locator("xpath=ancestor::section[1]");
 }
 
 async function openUseCase(page: Page, bootstrap: BootstrapResult) {
@@ -646,7 +758,10 @@ test("completes the persisted eight-step wizard, reloads cleanly, and submits", 
   await openUseCase(page, bootstrap);
   await page.getByRole("button", { name: CREATE_DRAFT_LABEL }).click();
   await expect(page.getByText(KICKSTART_TITLE)).toBeVisible();
-  await expect(page.getByText(UNAVAILABLE_TEXT)).toBeVisible();
+  await expect(page.getByText(KICKSTART_DISABLED_TEXT)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: GENERATE_KICKSTART_LABEL }),
+  ).toHaveCount(0);
   await page.setViewportSize({ width: 320, height: 900 });
   await expectNoTaggedAxeViolations(page);
   await page.setViewportSize({ width: 1440, height: 1200 });
@@ -781,6 +896,189 @@ test("completes the persisted eight-step wizard, reloads cleanly, and submits", 
       .getByText(numberPattern(scorecardBody.value_assessment.net_annual_value))
       .first(),
   ).toBeVisible();
+});
+
+test("reviews and applies an AI proposal with explicit overwrite confirmation", async ({
+  page,
+  request,
+}) => {
+  const workspaceAdmin = await fetchDevIdentityHeaders(request, {
+    subjectId: "workspace-admin",
+    displayName: "Local Workspace Admin",
+    role: "WorkspaceAdmin",
+  });
+  const consultant = await fetchDevIdentityHeaders(request, {
+    subjectId: "consultant",
+    displayName: "Local Consultant",
+    role: "Consultant",
+  });
+  const bootstrap = await bootstrapUseCase(request, {
+    programName: `Programme kickstart ${Date.now()}`,
+    useCaseTitle: `Cas kickstart ${Date.now()}`,
+  });
+  await proxyApiRequests(page, request);
+
+  const createdAssessment = await createDraftAssessment(
+    request,
+    bootstrap,
+    consultant.headers,
+  );
+  await seedAssessmentAnswers(request, {
+    bootstrap,
+    assessmentId: createdAssessment.assessment.id,
+    headers: consultant.headers,
+    answers: {
+      target_process: "Qualifier les dossiers entrants avant affectation.",
+      problem_statement:
+        "Le tri manuel provoque des écarts de traitement entre les gestionnaires.",
+      ai_task: "Le gestionnaire qualifie manuellement chaque dossier avant affectation.",
+      primary_kpi: "Temps de qualification actuel",
+      value_hypothesis: "Réduire les reprises manuelles grâce à une préqualification assistée.",
+      risk_hypothesis:
+        "La recommandation IA doit rester revue par un humain avant toute affectation.",
+      missing_knowledge: "Seuil d’acceptation métier non documenté.",
+    },
+  });
+
+  await selectDevIdentity(page, request, {
+    subjectId: "consultant",
+    displayName: "Local Consultant",
+    role: "Consultant",
+  });
+  await openUseCase(page, bootstrap);
+
+  await expect(page.getByText(KICKSTART_DISABLED_TEXT)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: GENERATE_KICKSTART_LABEL }),
+  ).toHaveCount(0);
+
+  const workspaceAfterEnable = await setWorkspaceAiAssistance(request, {
+    workspaceId: bootstrap.workspaceId,
+    headers: workspaceAdmin.headers,
+    enabled: true,
+    note: "Résumé métier approuvé pour tests S9, sans PII ni secret.",
+  });
+  expect(workspaceAfterEnable.ai_assistance_enabled).toBe(true);
+  expect(workspaceAfterEnable.ai_assistance_available).toBe(true);
+  expect(workspaceAfterEnable.ai_assistance_consent_at).toBeTruthy();
+  expect(workspaceAfterEnable.ai_assistance_data_processing_note).toContain(
+    "tests S9",
+  );
+
+  await page.reload();
+  await openUseCase(page, bootstrap);
+  await expect(
+    page.getByRole("button", { name: GENERATE_KICKSTART_LABEL }),
+  ).toBeVisible();
+  const kickstartResponsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "POST" &&
+      url.pathname ===
+        `/api/v1/workspaces/${bootstrap.workspaceId}/programs/${bootstrap.programId}/use-cases/${bootstrap.useCaseId}/assessments/${createdAssessment.assessment.id}/kickstart`
+    );
+  });
+  await page.getByRole("button", { name: GENERATE_KICKSTART_LABEL }).click();
+  const kickstartSuggestion = await expectApiJson<KickstartSuggestion>(
+    await kickstartResponsePromise,
+    "Generating AI kickstart proposal",
+  );
+  expect(kickstartSuggestion.provider).toBe("fake");
+  expect(kickstartSuggestion.model).toBe("fake-kickstart-v1");
+
+  const problemProposal = page.getByRole("textbox", {
+    name: KICKSTART_PROBLEM_PROPOSAL_LABEL,
+  });
+  await expect(problemProposal).toHaveValue(
+    kickstartSuggestion.proposal.problem_statement,
+  );
+  await problemProposal.fill(
+    "Le tri initial reste hétérogène et rallonge la qualification des dossiers prioritaires.",
+  );
+  const problemCard = kickstartCard(page, KICKSTART_PROBLEM_HEADING);
+  await problemCard
+    .getByRole("button", { name: /Accepter cette proposition|Accept this proposal/ })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: KICKSTART_CONFIRM_TITLE }),
+  ).toBeVisible();
+  const overwriteDialog = page.getByRole("dialog");
+  await expect(
+    overwriteDialog.getByText(
+      "Le tri manuel provoque des écarts de traitement entre les gestionnaires.",
+    ),
+  ).toBeVisible();
+  await expect(
+    overwriteDialog.getByText(
+      "Le tri initial reste hétérogène et rallonge la qualification des dossiers prioritaires.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: KICKSTART_CONFIRM_BUTTON }).click();
+  await expect(page.getByText(KICKSTART_APPLIED_TEXT)).toBeVisible();
+  await expect(problemCard.getByText(AI_ASSISTED_TEXT)).toBeVisible();
+
+  const kpiProposal = page.getByRole("textbox", {
+    name: KICKSTART_KPI_PROPOSAL_LABEL,
+  });
+  await expect(kpiProposal).toHaveValue(
+    kickstartSuggestion.proposal.kpi_proposals.join("\n"),
+  );
+  const kpiCard = kickstartCard(page, KICKSTART_KPI_HEADING);
+  await kpiCard
+    .getByRole("button", { name: /Accepter cette proposition|Accept this proposal/ })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: KICKSTART_CONFIRM_TITLE }),
+  ).toBeVisible();
+  await expect(overwriteDialog.getByText("Temps de qualification actuel")).toBeVisible();
+  await expect(
+    overwriteDialog.getByText(
+      kickstartSuggestion.proposal.kpi_proposals.join("; "),
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: KICKSTART_CONFIRM_BUTTON }).click();
+  await expect(kpiCard.getByText(KICKSTART_APPLIED_TEXT)).toBeVisible();
+
+  const risksCard = kickstartCard(page, KICKSTART_RISKS_HEADING);
+  await risksCard
+    .getByRole("button", { name: /Ignorer|Ignore/ })
+    .click();
+  await expect(risksCard.getByText(KICKSTART_IGNORED_TEXT)).toBeVisible();
+
+  const assessmentResponse = await request.get(
+    `http://127.0.0.1:8010/api/v1/workspaces/${bootstrap.workspaceId}/programs/${bootstrap.programId}/use-cases/${bootstrap.useCaseId}/assessments/current`,
+    {
+      headers: consultant.headers,
+    },
+  );
+  const assessmentBody = await expectApiJson<{
+    template: {
+      steps: Array<{
+        questions: Array<{
+          key: string;
+          value: string | null;
+          source: "human" | "ai_assisted" | null;
+        }>;
+      }>;
+    };
+  }>(assessmentResponse, "Fetching AI-assisted assessment");
+  const questions = assessmentBody.template.steps.flatMap((step) => step.questions);
+  expect(
+    questions.find((question) => question.key === "problem_statement"),
+  ).toMatchObject({
+    value:
+      "Le tri initial reste hétérogène et rallonge la qualification des dossiers prioritaires.",
+    source: "ai_assisted",
+  });
+  expect(questions.find((question) => question.key === "primary_kpi")).toMatchObject({
+    value: kickstartSuggestion.proposal.kpi_proposals.join("; "),
+    source: "ai_assisted",
+  });
+  expect(questions.find((question) => question.key === "risk_hypothesis")).toMatchObject({
+    value:
+      "La recommandation IA doit rester revue par un humain avant toute affectation.",
+    source: "human",
+  });
 });
 
 test("routes sponsor approval through the review panel and inbox", async ({

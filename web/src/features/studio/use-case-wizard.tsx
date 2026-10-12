@@ -11,8 +11,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import {
   ApiClientError,
@@ -21,10 +23,13 @@ import {
 import type {
   AssessmentEnvelope,
   JsonValue,
+  KickstartProposal,
+  KickstartSuggestion,
   UseCase,
   WizardAnswerResponse,
   WizardQuestion,
   WorkspaceMember,
+  WorkspaceSummary,
 } from "@/features/api/types";
 import { useAuth } from "@/features/auth/auth-context";
 import { getPublicRuntimeConfig } from "@/features/auth/runtime";
@@ -34,6 +39,8 @@ import {
   formatTime,
   normalizeForServer,
   parseQuestionValue,
+  splitListEntries,
+  summarizeValue,
 } from "@/features/studio/wizard/utils";
 import { cn } from "@/lib/cn";
 
@@ -42,6 +49,60 @@ const FIRST_EDITABLE_STEP = 1;
 const LAST_STEP = 8;
 const STORAGE_PREFIX = "avs.wizard.draft";
 const SAVE_DEBOUNCE_MS = 700;
+
+const KICKSTART_FIELD_CONFIG = [
+  {
+    id: "problem_statement",
+    questionKey: "problem_statement",
+    proposalKey: "problem_statement",
+  },
+  {
+    id: "ai_solution",
+    questionKey: "ai_task",
+    proposalKey: "ai_solution",
+  },
+  {
+    id: "kpi_proposals",
+    questionKey: "primary_kpi",
+    proposalKey: "kpi_proposals",
+  },
+  {
+    id: "value_hypotheses",
+    questionKey: "value_hypothesis",
+    proposalKey: "value_hypotheses",
+  },
+  {
+    id: "risks",
+    questionKey: "risk_hypothesis",
+    proposalKey: "risks",
+  },
+  {
+    id: "missing_info",
+    questionKey: "missing_knowledge",
+    proposalKey: "missing_info",
+  },
+] as const;
+
+type KickstartFieldId = (typeof KICKSTART_FIELD_CONFIG)[number]["id"];
+
+type KickstartStatus =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ready"; generatedAt: string }
+  | { kind: "error"; message: string };
+
+type KickstartFieldState =
+  | { kind: "idle" }
+  | { kind: "applying" }
+  | { kind: "applied" }
+  | { kind: "ignored" }
+  | { kind: "error"; message: string };
+
+type KickstartOverwriteDialogState = {
+  fieldId: KickstartFieldId;
+  nextValue: string;
+  currentValue: string;
+} | null;
 
 type SaveState =
   | { kind: "idle" }
@@ -207,9 +268,75 @@ function isNetworkError(error: unknown) {
   return error instanceof ApiClientError && error.problem.status === 0;
 }
 
+function emptyKickstartFieldStates(): Record<KickstartFieldId, KickstartFieldState> {
+  return Object.fromEntries(
+    KICKSTART_FIELD_CONFIG.map((field) => [field.id, { kind: "idle" }]),
+  ) as Record<KickstartFieldId, KickstartFieldState>;
+}
+
+function kickstartFieldLabel(fieldId: KickstartFieldId, labels: typeof wizardCopy.fr) {
+  if (fieldId === "problem_statement") {
+    return labels.kickstartProblemStatement;
+  }
+  if (fieldId === "ai_solution") {
+    return labels.kickstartAiSolution;
+  }
+  if (fieldId === "kpi_proposals") {
+    return labels.kickstartKpiProposals;
+  }
+  if (fieldId === "value_hypotheses") {
+    return labels.kickstartValueHypotheses;
+  }
+  if (fieldId === "risks") {
+    return labels.kickstartRisks;
+  }
+  return labels.kickstartMissingInfoTitle;
+}
+
+function kickstartEditorValue(field: (typeof KICKSTART_FIELD_CONFIG)[number], proposal: KickstartProposal) {
+  const value = proposal[field.proposalKey];
+  return Array.isArray(value) ? value.join("\n") : value;
+}
+
+function buildKickstartEditors(proposal: KickstartProposal): Record<KickstartFieldId, string> {
+  return Object.fromEntries(
+    KICKSTART_FIELD_CONFIG.map((field) => [field.id, kickstartEditorValue(field, proposal)]),
+  ) as Record<KickstartFieldId, string>;
+}
+
+function serializeKickstartValue(fieldId: KickstartFieldId, value: string): string {
+  if (fieldId === "kpi_proposals") {
+    return splitListEntries(value).join("; ");
+  }
+  if (
+    fieldId === "value_hypotheses" ||
+    fieldId === "risks" ||
+    fieldId === "missing_info"
+  ) {
+    return splitListEntries(value).join("\n");
+  }
+  return value.trim();
+}
+
+function stringifyQuestionValue(value: JsonValue, locale: Locale, labels: typeof wizardCopy.fr) {
+  if (value === null) {
+    return labels.kickstartNoAnswer;
+  }
+  if (typeof value === "string") {
+    return value.trim() || labels.kickstartNoAnswer;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry): entry is string => typeof entry === "string")
+      .join("\n");
+  }
+  return summarizeValue(value, locale, labels);
+}
+
 export function UseCaseWizard({
   workspaceId,
   programId,
+  workspace,
   useCase,
   members,
   locale,
@@ -218,6 +345,7 @@ export function UseCaseWizard({
 }: {
   workspaceId: string;
   programId: string;
+  workspace: WorkspaceSummary | null;
   useCase: UseCase;
   members: WorkspaceMember[];
   locale: Locale;
@@ -249,6 +377,24 @@ export function UseCaseWizard({
   const [isOnline, setIsOnline] = useState(
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
+  const [kickstartStatus, setKickstartStatus] = useState<KickstartStatus>({ kind: "idle" });
+  const [kickstartSuggestion, setKickstartSuggestion] = useState<KickstartSuggestion | null>(null);
+  const [kickstartEditors, setKickstartEditors] = useState<Record<KickstartFieldId, string>>(
+    () => buildKickstartEditors({
+      source: "ai_assisted",
+      problem_statement: "",
+      ai_solution: "",
+      kpi_proposals: [],
+      value_hypotheses: [],
+      risks: [],
+      missing_info: [],
+    }),
+  );
+  const [kickstartFieldStates, setKickstartFieldStates] = useState<
+    Record<KickstartFieldId, KickstartFieldState>
+  >(() => emptyKickstartFieldStates());
+  const [overwriteDialog, setOverwriteDialog] =
+    useState<KickstartOverwriteDialogState>(null);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
   const pendingDraftSyncRef = useRef<Promise<void> | null>(null);
@@ -382,6 +528,24 @@ export function UseCaseWizard({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [envelope]);
+
+  useEffect(() => {
+    setKickstartStatus({ kind: "idle" });
+    setKickstartSuggestion(null);
+    setKickstartEditors(
+      buildKickstartEditors({
+        source: "ai_assisted",
+        problem_statement: "",
+        ai_solution: "",
+        kpi_proposals: [],
+        value_hypotheses: [],
+        risks: [],
+        missing_info: [],
+      }),
+    );
+    setKickstartFieldStates(emptyKickstartFieldStates());
+    setOverwriteDialog(null);
+  }, [envelope?.assessment.id]);
 
   const processPendingDrafts = useCallback(async () => {
     if (pendingDraftSyncRef.current) {
@@ -607,6 +771,178 @@ export function UseCaseWizard({
     [currentStep, envelope, pendingDrafts, persistClientDraft],
   );
 
+  const handleKickstartGenerate = useCallback(async () => {
+    if (!envelope) {
+      return;
+    }
+    setKickstartStatus({ kind: "loading" });
+    setKickstartSuggestion(null);
+    setKickstartFieldStates(emptyKickstartFieldStates());
+    setOverwriteDialog(null);
+    try {
+      let assessmentId = envelope.assessment.id;
+      if (Object.keys(pendingDrafts).length > 0) {
+        await processPendingDrafts();
+        const refreshed = await refreshAssessment(assessmentId);
+        assessmentId = refreshed.assessment.id;
+      }
+      const suggestion = await api.generateAssessmentKickstart(
+        workspaceId,
+        programId,
+        useCase.id,
+        assessmentId,
+      );
+      setKickstartSuggestion(suggestion);
+      setKickstartEditors(buildKickstartEditors(suggestion.proposal));
+      setKickstartStatus({ kind: "ready", generatedAt: suggestion.generated_at });
+    } catch (error) {
+      setKickstartStatus({
+        kind: "error",
+        message: problemMessage(error, labels.networkError),
+      });
+    }
+  }, [
+    api,
+    envelope,
+    labels.networkError,
+    pendingDrafts,
+    processPendingDrafts,
+    programId,
+    refreshAssessment,
+    useCase.id,
+    workspaceId,
+  ]);
+
+  const handleKickstartEditorChange = useCallback(
+    (fieldId: KickstartFieldId, value: string) => {
+      setKickstartEditors((current) => ({ ...current, [fieldId]: value }));
+      setKickstartFieldStates((current) => ({
+        ...current,
+        [fieldId]:
+          current[fieldId]?.kind === "applying" ? current[fieldId] : { kind: "idle" },
+      }));
+    },
+    [],
+  );
+
+  const applyKickstartField = useCallback(
+    async (fieldId: KickstartFieldId, confirmOverwrite: boolean) => {
+      if (!envelope) {
+        return;
+      }
+      const field = KICKSTART_FIELD_CONFIG.find((entry) => entry.id === fieldId);
+      if (!field) {
+        return;
+      }
+      const question = findQuestion(envelope, field.questionKey);
+      if (!question) {
+        setKickstartFieldStates((current) => ({
+          ...current,
+          [fieldId]: { kind: "error", message: labels.loadingError },
+        }));
+        return;
+      }
+      const nextValue = serializeKickstartValue(fieldId, kickstartEditors[fieldId] ?? "");
+      setKickstartFieldStates((current) => ({
+        ...current,
+        [fieldId]: { kind: "applying" },
+      }));
+      try {
+        const answer = await api.upsertAssessmentAnswer(
+          workspaceId,
+          programId,
+          useCase.id,
+          envelope.assessment.id,
+          field.questionKey,
+          {
+            value: nextValue,
+            source: "ai_assisted",
+            confirm_overwrite_ai_assisted: confirmOverwrite,
+          },
+        );
+        const nextEnvelope = patchEnvelopeFromAnswer(envelope, answer);
+        const nextDrafts = { ...pendingDrafts };
+        delete nextDrafts[field.questionKey];
+        setEnvelope(nextEnvelope);
+        setPendingDrafts(nextDrafts);
+        persistClientDraft(
+          nextDrafts,
+          currentStep,
+          nextEnvelope.assessment.id,
+          nextEnvelope,
+        );
+        setKickstartFieldStates((current) => ({
+          ...current,
+          [fieldId]: { kind: "applied" },
+        }));
+        setSaveState({ kind: "saved", at: new Date().toISOString() });
+      } catch (error) {
+        setKickstartFieldStates((current) => ({
+          ...current,
+          [fieldId]: {
+            kind: "error",
+            message: problemMessage(error, labels.networkError),
+          },
+        }));
+      }
+    },
+    [
+      api,
+      currentStep,
+      envelope,
+      kickstartEditors,
+      labels.loadingError,
+      labels.networkError,
+      pendingDrafts,
+      persistClientDraft,
+      programId,
+      useCase.id,
+      workspaceId,
+    ],
+  );
+
+  const handleKickstartAccept = useCallback(
+    (fieldId: KickstartFieldId) => {
+      if (!envelope) {
+        return;
+      }
+      const field = KICKSTART_FIELD_CONFIG.find((entry) => entry.id === fieldId);
+      if (!field) {
+        return;
+      }
+      const question = findQuestion(envelope, field.questionKey);
+      if (!question) {
+        return;
+      }
+      const nextValue = serializeKickstartValue(fieldId, kickstartEditors[fieldId] ?? "");
+      const currentValue = stringifyQuestionValue(question.value, locale, labels);
+      const hasCurrentAnswer =
+        question.value !== null &&
+        !(typeof question.value === "string" && question.value.trim() === "");
+      const shouldConfirm =
+        hasCurrentAnswer &&
+        currentValue.trim() !== labels.kickstartNoAnswer &&
+        currentValue.trim() !== nextValue.trim();
+      if (shouldConfirm) {
+        setOverwriteDialog({
+          fieldId,
+          nextValue,
+          currentValue,
+        });
+        return;
+      }
+      void applyKickstartField(fieldId, false);
+    },
+    [applyKickstartField, envelope, kickstartEditors, labels, locale],
+  );
+
+  const handleKickstartIgnore = useCallback((fieldId: KickstartFieldId) => {
+    setKickstartFieldStates((current) => ({
+      ...current,
+      [fieldId]: { kind: "ignored" },
+    }));
+  }, []);
+
   const handleContinue = useCallback(async () => {
     if (!envelope) {
       return;
@@ -712,6 +1048,20 @@ export function UseCaseWizard({
     envelope?.assessment.status === "Submitted" &&
     canCreateDraft &&
     (useCase.status === "ChangesRequested" || useCase.status === "Approved");
+  const canGenerateKickstart =
+    viewerRole === "Consultant" &&
+    Boolean(envelope?.assessment.can_edit) &&
+    Boolean(workspace?.ai_assistance_enabled) &&
+    Boolean(workspace?.ai_assistance_available);
+  const kickstartEligibilityMessage = !workspace?.ai_assistance_enabled
+    ? labels.kickstartDisabledExplanation
+    : !workspace.ai_assistance_available
+      ? labels.kickstartUnavailableExplanation
+      : viewerRole !== "Consultant"
+        ? labels.kickstartConsultantOnlyExplanation
+        : !envelope?.assessment.can_edit
+          ? labels.kickstartDraftOnlyExplanation
+          : labels.kickstartReadyDescription;
 
   const steps = useMemo(
     () => envelope?.template.steps.filter((step) => step.index > 0) ?? [],
@@ -722,6 +1072,186 @@ export function UseCaseWizard({
     return (
       <Card>
         <CardHeader title={labels.loading} />
+      </Card>
+    );
+  }
+
+  function KickstartPanel({
+    envelope,
+    locale,
+    labels,
+    status,
+    suggestion,
+    editors,
+    fieldStates,
+    canGenerate,
+    eligibilityMessage,
+    onGenerate,
+    onEditorChange,
+    onAccept,
+    onIgnore,
+  }: {
+    envelope: AssessmentEnvelope;
+    locale: Locale;
+    labels: typeof wizardCopy.fr;
+    status: KickstartStatus;
+    suggestion: KickstartSuggestion | null;
+    editors: Record<KickstartFieldId, string>;
+    fieldStates: Record<KickstartFieldId, KickstartFieldState>;
+    canGenerate: boolean;
+    eligibilityMessage: string;
+    onGenerate: () => void;
+    onEditorChange: (fieldId: KickstartFieldId, value: string) => void;
+    onAccept: (fieldId: KickstartFieldId) => void;
+    onIgnore: (fieldId: KickstartFieldId) => void;
+  }) {
+    const action = canGenerate ? (
+      <Button onClick={onGenerate} disabled={status.kind === "loading"}>
+        {status.kind === "loading" ? labels.kickstartGenerating : labels.kickstartGenerate}
+      </Button>
+    ) : (
+      <Badge tone="warning">{labels.unavailableChip}</Badge>
+    );
+
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader
+          title={labels.kickstartTitle}
+          description={labels.kickstartDescription}
+          action={action}
+        />
+        <div className="space-y-4">
+          <div className="rounded-2xl bg-[var(--studio-surface-subtle)] p-4">
+            <p className="text-sm text-[var(--studio-muted)]">{eligibilityMessage}</p>
+            {status.kind === "ready" ? (
+              <p className="mt-2 text-sm font-medium text-[var(--studio-foreground)]">
+                {labels.kickstartGeneratedAt} {formatTime(status.generatedAt, locale)}
+              </p>
+            ) : null}
+          </div>
+
+          {status.kind === "error" ? (
+            <div
+              role="alert"
+              className="rounded-2xl border border-[var(--studio-danger)] bg-[var(--studio-danger-soft)] p-4"
+            >
+              <p className="text-sm text-[var(--studio-danger)]">{status.message}</p>
+              {canGenerate ? (
+                <div className="mt-3">
+                  <Button variant="secondary" onClick={onGenerate}>
+                    {labels.retry}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {suggestion ? (
+            <div className="space-y-4">
+              {KICKSTART_FIELD_CONFIG.map((field) => {
+                const mappedQuestion = findQuestion(envelope, field.questionKey);
+                const fieldState = fieldStates[field.id];
+                const isIgnored = fieldState.kind === "ignored";
+                const currentValue = mappedQuestion
+                  ? stringifyQuestionValue(mappedQuestion.value, locale, labels)
+                  : labels.noData;
+                const editorValue = editors[field.id] ?? "";
+                return (
+                  <section
+                    key={field.id}
+                    className="rounded-2xl border border-[var(--studio-border)] p-4"
+                  >
+                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold text-[var(--studio-foreground)]">
+                          {kickstartFieldLabel(field.id, labels)}
+                        </h3>
+                        {field.id === "kpi_proposals" ? (
+                          <p className="mt-1 text-sm text-[var(--studio-muted)]">
+                            {labels.kickstartKpiHint}
+                          </p>
+                        ) : null}
+                      </div>
+                      {mappedQuestion?.source === "ai_assisted" ? (
+                        <Badge tone="info">{labels.aiAssisted}</Badge>
+                      ) : null}
+                    </div>
+                    {isIgnored ? (
+                      <div className="rounded-2xl bg-[var(--studio-surface-subtle)] p-4">
+                        <p className="text-sm text-[var(--studio-muted)]">
+                          {labels.kickstartIgnored}
+                        </p>
+                        <div className="mt-3">
+                          <Button
+                            variant="secondary"
+                            onClick={() => onEditorChange(field.id, editorValue)}
+                          >
+                            {labels.kickstartReviewAgain}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
+                        <div className="space-y-2 rounded-2xl bg-[var(--studio-surface-subtle)] p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--studio-muted)]">
+                            {labels.kickstartCurrentAnswer}
+                          </p>
+                          <p className="whitespace-pre-wrap text-sm text-[var(--studio-foreground)]">
+                            {currentValue}
+                          </p>
+                        </div>
+                        <div className="space-y-3 rounded-2xl border border-[var(--studio-border)] p-4">
+                          <label
+                            htmlFor={`kickstart-${field.id}`}
+                            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--studio-muted)]"
+                          >
+                            {labels.kickstartProposal}
+                          </label>
+                          <Textarea
+                            id={`kickstart-${field.id}`}
+                            value={editorValue}
+                            onChange={(event) => onEditorChange(field.id, event.target.value)}
+                            aria-label={`${kickstartFieldLabel(field.id, labels)} — ${labels.kickstartProposal}`}
+                            disabled={fieldState.kind === "applying"}
+                          />
+                          <div className="flex flex-col gap-3 sm:flex-row">
+                            <Button
+                              onClick={() => onAccept(field.id)}
+                              disabled={fieldState.kind === "applying" || !mappedQuestion}
+                            >
+                              {fieldState.kind === "applying"
+                                ? labels.autosaveSaving
+                                : labels.kickstartAccept}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              onClick={() => onIgnore(field.id)}
+                              disabled={fieldState.kind === "applying"}
+                            >
+                              {labels.kickstartIgnore}
+                            </Button>
+                          </div>
+                          {fieldState.kind === "applied" ? (
+                            <p className="text-sm text-[var(--studio-success)]">
+                              {labels.kickstartApplied}
+                            </p>
+                          ) : null}
+                          {fieldState.kind === "error" ? (
+                            <p role="alert" className="text-sm text-[var(--studio-danger)]">
+                              {fieldState.message}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--studio-muted)]">{labels.kickstartNoProposal}</p>
+          )}
+        </div>
       </Card>
     );
   }
@@ -764,10 +1294,21 @@ export function UseCaseWizard({
 
   return (
     <section className="space-y-6">
-      <Card className="border-dashed">
-        <CardHeader title={labels.kickstartTitle} description={labels.kickstartDescription} />
-        <Badge tone="warning">{labels.unavailableChip}</Badge>
-      </Card>
+      <KickstartPanel
+        envelope={envelope}
+        locale={locale}
+        labels={labels}
+        status={kickstartStatus}
+        suggestion={kickstartSuggestion}
+        editors={kickstartEditors}
+        fieldStates={kickstartFieldStates}
+        canGenerate={canGenerateKickstart}
+        eligibilityMessage={kickstartEligibilityMessage}
+        onGenerate={() => void handleKickstartGenerate()}
+        onEditorChange={handleKickstartEditorChange}
+        onAccept={handleKickstartAccept}
+        onIgnore={handleKickstartIgnore}
+      />
 
       <Card>
         <div className="flex flex-col gap-4 border-b border-[var(--studio-border)] pb-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1016,6 +1557,55 @@ export function UseCaseWizard({
           </aside>
         </div>
       </Card>
+      <Dialog
+        open={overwriteDialog !== null}
+        title={labels.kickstartOverwriteTitle}
+        description={labels.kickstartOverwriteDescription}
+        onClose={() => setOverwriteDialog(null)}
+        hideDefaultClose
+      >
+        {overwriteDialog ? (
+          <div className="space-y-4">
+            <div className="space-y-3 rounded-2xl bg-[var(--studio-surface-subtle)] p-4">
+              <p className="text-sm font-semibold text-[var(--studio-foreground)]">
+                {kickstartFieldLabel(overwriteDialog.fieldId, labels)}
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--studio-muted)]">
+                    {labels.kickstartCurrentAnswer}
+                  </p>
+                  <p className="whitespace-pre-wrap text-sm text-[var(--studio-foreground)]">
+                    {overwriteDialog.currentValue}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--studio-muted)]">
+                    {labels.kickstartProposal}
+                  </p>
+                  <p className="whitespace-pre-wrap text-sm text-[var(--studio-foreground)]">
+                    {overwriteDialog.nextValue}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={() => setOverwriteDialog(null)}>
+                {labels.kickstartCancelOverwrite}
+              </Button>
+              <Button
+                onClick={() => {
+                  const pendingFieldId = overwriteDialog.fieldId;
+                  setOverwriteDialog(null);
+                  void applyKickstartField(pendingFieldId, true);
+                }}
+              >
+                {labels.kickstartConfirmOverwrite}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Dialog>
     </section>
   );
 }

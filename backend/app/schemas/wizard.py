@@ -25,6 +25,8 @@ class AnswerUpsertRequest(BaseModel):
     evidence_text: str | None = Field(default=None, max_length=2000)
     confidence: str | None = Field(default=None, max_length=120)
     captured_for_membership_id: uuid.UUID | None = None
+    source: AnswerSource | None = None
+    confirm_overwrite_ai_assisted: bool = False
 
 
 class StepValidationError(BaseModel):

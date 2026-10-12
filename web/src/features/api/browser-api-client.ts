@@ -6,6 +6,7 @@ import type {
   GeneratedDocument,
   GeneratedDocumentVersion,
   JsonValue,
+  KickstartSuggestion,
   MeResponse,
   ProblemDetail,
   Program,
@@ -296,6 +297,8 @@ export class BrowserApiClient {
       evidence_text?: string | null;
       confidence?: string | null;
       captured_for_membership_id?: string | null;
+      source?: "human" | "ai_assisted";
+      confirm_overwrite_ai_assisted?: boolean;
     },
   ): Promise<WizardAnswerResponse> {
     return this.request<WizardAnswerResponse>(
@@ -303,6 +306,20 @@ export class BrowserApiClient {
       {
         method: "PUT",
         body: JSON.stringify(payload),
+      },
+    );
+  }
+
+  async generateAssessmentKickstart(
+    workspaceId: string,
+    programId: string,
+    useCaseId: string,
+    assessmentId: string,
+  ): Promise<KickstartSuggestion> {
+    return this.request<KickstartSuggestion>(
+      `/workspaces/${workspaceId}/programs/${programId}/use-cases/${useCaseId}/assessments/${assessmentId}/kickstart`,
+      {
+        method: "POST",
       },
     );
   }

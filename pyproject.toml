@@ -11,7 +11,9 @@ requires-python = ">=3.11,<3.12"
 
 [project.optional-dependencies]
 backend = [
+    "anthropic>=0.57,<1",
     "jinja2>=3.1,<4",
+    "openai>=1.54,<2",
     "weasyprint>=66,<67",
 ]
 dev = [
@@ -31,6 +33,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "backend/tests"]
 pythonpath = [".", "src", "backend"]
+markers = [
+    "live: opt-in tests that call external LLM providers",
+]
 
 [tool.ruff]
 line-length = 100

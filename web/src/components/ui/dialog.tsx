@@ -11,12 +11,16 @@ export function Dialog({
   description,
   children,
   onClose,
+  closeLabel = "Fermer",
+  hideDefaultClose = false,
 }: {
   open: boolean;
   title: string;
   description?: string;
   children: React.ReactNode;
   onClose: () => void;
+  closeLabel?: string;
+  hideDefaultClose?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -47,11 +51,13 @@ export function Dialog({
           {description ? <p className="text-sm text-[var(--studio-muted)]">{description}</p> : null}
         </div>
         {children}
-        <div className="flex justify-end">
-          <Button variant="secondary" onClick={onClose}>
-            Fermer
-          </Button>
-        </div>
+        {hideDefaultClose ? null : (
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={onClose}>
+              {closeLabel}
+            </Button>
+          </div>
+        )}
       </div>
     </dialog>
   );

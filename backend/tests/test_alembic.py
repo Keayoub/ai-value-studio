@@ -32,11 +32,20 @@ def test_sqlite_alembic_upgrade_and_downgrade(sqlite_db_url: str) -> None:
         "approvals",
         "documents",
         "document_versions",
+        "llm_circuit_breakers",
+        "llm_rate_limit_buckets",
     } <= set(inspector.get_table_names())
     audit_columns = {column["name"] for column in inspector.get_columns("audit_events")}
+    workspace_columns = {column["name"] for column in inspector.get_columns("workspaces")}
     assert {"before_hash", "after_hash", "metadata_json"} <= audit_columns
     assert "before_json" not in audit_columns
     assert "after_json" not in audit_columns
+    assert {
+        "ai_assistance_enabled",
+        "ai_assistance_consent_at",
+        "ai_assistance_consent_by_subject_id",
+        "ai_assistance_data_processing_note",
+    } <= workspace_columns
     program_columns = {column["name"] for column in inspector.get_columns("programs")}
     use_case_columns = {column["name"] for column in inspector.get_columns("use_cases")}
     template_columns = {
@@ -75,6 +84,26 @@ def test_sqlite_alembic_upgrade_and_downgrade(sqlite_db_url: str) -> None:
         "ai_assisted_sections_json",
         "idempotency_key",
     } <= document_version_columns
+    llm_rate_limit_columns = {
+        column["name"] for column in inspector.get_columns("llm_rate_limit_buckets")
+    }
+    llm_circuit_columns = {
+        column["name"] for column in inspector.get_columns("llm_circuit_breakers")
+    }
+    assert {
+        "workspace_id",
+        "actor_subject_id",
+        "bucket_start",
+        "request_count",
+    } <= llm_rate_limit_columns
+    assert {
+        "workspace_id",
+        "provider",
+        "consecutive_failures",
+        "opened_until",
+        "last_failure_code",
+        "last_failure_at",
+    } <= llm_circuit_columns
 
     with engine.begin() as connection:
         seeded_template = (

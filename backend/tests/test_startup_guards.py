@@ -48,6 +48,22 @@ def test_entra_mode_requires_complete_configuration(
         create_app()
 
 
+@pytest.mark.parametrize("app_env", ["local", "production"])
+def test_fake_llm_provider_is_refused_outside_test_env(
+    monkeypatch: pytest.MonkeyPatch,
+    sqlite_db_url: str,
+    app_env: str,
+) -> None:
+    configure = configure_dev_env if app_env == "local" else configure_entra_env
+    configure(monkeypatch, sqlite_db_url, APP_ENV=app_env, LLM_PROVIDER="fake")
+
+    with pytest.raises(
+        ValidationError,
+        match="LLM_PROVIDER=fake is only allowed when APP_ENV is test",
+    ):
+        create_app()
+
+
 def test_subprocess_refuses_dev_mode_in_production(sqlite_db_url: str) -> None:
     env = os.environ.copy()
     env.update(
