@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="fr">
+  <body>
+    <header id="doc-header" class="running-header">
+      <div class="running-header__grid">
+        <div class="running-header__cell">{{ document_title }} · {{ use_case_title }}</div>
+        <div class="running-header__cell running-header__cell--center">{{ sponsor_name }} · v{{ version_no }}</div>
+        <div class="running-header__cell running-header__cell--right">{{ document_status_label }}</div>
+      </div>
+    </header>
+
+    <footer id="doc-footer" class="running-footer">
+      <div class="running-footer__grid">
+        <div class="running-footer__row">
+          <div class="running-footer__cell running-footer__cell--meta">
+            v{{ version_no }} · {{ generated_at_display }} · {{ generated_by }}
+          </div>
+          <div class="running-footer__cell running-footer__cell--right">{{ document_status_label }}</div>
+        </div>
+        <div class="running-footer__row">
+          <div class="running-footer__cell running-footer__cell--meta">
+            Confidentialité {{ confidentiality_label }} · évaluation v{{ assessment_version }} · scorecard v{{ scorecard_version }} · {{ review_status_footer_label }}
+          </div>
+          <div class="running-footer__cell running-footer__cell--right"><span class="page-counter"></span></div>
+        </div>
+      </div>
+    </footer>
+
+    <section class="cover">
+      <div class="cover__eyebrow">AI Value Studio · Cadre de pilote</div>
+      <h1 class="cover__title">{{ document_title }}</h1>
+      <p class="cover__subtitle">Cas d’usage «&nbsp;{{ use_case_title }}&nbsp;» · programme «&nbsp;{{ program_name }}&nbsp;»</p>
+      <p class="cover__lede">
+        Cette charte transforme la recommandation validée en cadre opératoire. Elle ne décrit que le
+        périmètre explicitement présent dans le snapshot et signale les points restant à confirmer.
+      </p>
+
+      <div class="cover__grid">
+        <div class="cover__cell">
+          <div class="cover-panel">
+            <div class="cover-panel__label">Mandat</div>
+            <p>Sponsor métier&nbsp;: {{ sponsor_name }}</p>
+            <p>Responsable opérationnel&nbsp;: {{ owner_name }}</p>
+            <p>Utilisateurs pilotes&nbsp;: {{ pilot_users }}</p>
+            <p>Règle HITL&nbsp;: {{ human_validation_rule }}</p>
+          </div>
+          <div class="cover-panel">
+            <div class="cover-panel__label">Trajectoire</div>
+            <p>KPI principal&nbsp;: {{ kpi_baseline }}</p>
+            <p>Cible déclarée&nbsp;: {{ kpi_target }}</p>
+            <p>Horizon d’impact&nbsp;: {{ timeline_note }}</p>
+          </div>
+        </div>
+
+        <div class="cover__cell">
+          <div class="cover-panel">
+            <div class="cover-panel__label">Périmètre technique</div>
+            <p>Environnement source&nbsp;: {{ source_environment }}</p>
+            <p>Sensibilité des données&nbsp;: {{ data_sensitivity_label }}</p>
+            <p>Autonomie attendue&nbsp;: {{ autonomy_label }}</p>
+            <p>Langues couvertes&nbsp;: {{ supported_languages_display }}</p>
+          </div>
+          <div class="stamp-card{% if approval_stamp.tone == 'draft' %} stamp-card--draft{% endif %}">
+            <div class="stamp-card__label">{{ approval_stamp.label }}</div>
+            <p>{{ approval_stamp.detail }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page page-break">
+      <h2>1. Mandat de pilote</h2>
+      <p class="page__intro">
+        Le pilote proposé porte uniquement sur le périmètre ci-dessous. Les modalités détaillées de généralisation
+        restent hors champ tant qu’une nouvelle décision n’a pas été prise.
+      </p>
+
+      <div class="hero-card">
+        <h3>Périmètre retenu</h3>
+        <p>{{ pilot_scope }}</p>
+        <div class="quote">{{ executive_summary }}</div>
+        <table class="meta-table">
+          <tbody>
+            <tr>
+              <th>Sources et données</th>
+              <td>{{ data_sources }}</td>
+            </tr>
+            <tr>
+              <th>Environnement</th>
+              <td>{{ source_environment }}</td>
+            </tr>
+            <tr>
+              <th>Validation humaine</th>
+              <td>{{ human_validation_rule }}</td>
+            </tr>
+            <tr>
+              <th>Responsable du risque</th>
+              <td>{{ sponsor_name }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="page">
+      <h2>2. Faits verrouillés pour le pilote</h2>
+      <p class="page__intro">
+        Les cartes suivantes décrivent les constats saillants retenus comme base du pilote.
+      </p>
+
+      {% for item in facts %}
+        <article class="fact-card">
+          <div class="fact-card__meta">{{ item.title }}</div>
+          <p>
+            {% if item.ai_assisted %}<span class="ai-inline">{{ item.marker }}</span> — {% endif %}
+            {{ item.body }}
+          </p>
+          {% if item.source_metadata %}
+            <p class="source-metadata">
+              {% for meta in item.source_metadata %}
+                <span class="source-metadata__item">{{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}</span>
+              {% endfor %}
+            </p>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </section>
+
+    <section class="page">
+      <h2>3. Hypothèses à confirmer pendant le pilote</h2>
+      <p class="page__intro">
+        Les hypothèses ci-dessous doivent être vérifiées par observation réelle, mesure de KPI et relecture humaine.
+      </p>
+
+      {% for item in hypotheses %}
+        <article class="section-card">
+          <div class="section-card__meta">{{ item.title }}</div>
+          <p>
+            {% if item.ai_assisted %}<span class="ai-inline">{{ item.marker }}</span> — {% endif %}
+            {{ item.body }}
+          </p>
+          {% if item.source_metadata %}
+            <p class="source-metadata">
+              {% for meta in item.source_metadata %}
+                <span class="source-metadata__item">{{ meta.label }} · {{ meta.source_label }}</span>
+              {% endfor %}
+            </p>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </section>
+
+    <section class="page">
+      <h2>4. Cadre opératoire recommandé</h2>
+      <p class="page__intro">
+        Cette section transforme la recommandation de revue en consignes opérationnelles pour un pilote limité.
+      </p>
+
+      {% for item in recommendations %}
+        <article class="section-card">
+          <div class="section-card__meta">{{ item.title }}</div>
+          <p>
+            {% if item.ai_assisted %}<span class="ai-inline">{{ item.marker }}</span> — {% endif %}
+            {{ item.body }}
+          </p>
+          {% if item.source_metadata %}
+            <p class="source-metadata">
+              {% for meta in item.source_metadata %}
+                <span class="source-metadata__item">{{ meta.label }} · {{ meta.source_label }}</span>
+              {% endfor %}
+            </p>
+          {% endif %}
+        </article>
+      {% endfor %}
+
+      <div class="callout">
+        <strong>Comportement interdit&nbsp;:</strong> aucune décision finale sans validation humaine, et aucun élargissement
+        du périmètre sans nouvelle version documentaire.
+      </div>
+    </section>
+
+    <section class="page">
+      <h2>5. KPI, chronologie et succès attendus</h2>
+      <p class="page__intro">
+        Les objectifs sont formulés comme des cibles à vérifier et non comme des résultats acquis.
+      </p>
+
+      <div class="kpi-strip">
+        <div class="kpi-strip__item">
+          <div class="metric-card">
+            <span class="metric-card__label">KPI de référence</span>
+            <span class="metric-card__value">{{ kpi_baseline }}</span>
+            <div class="metric-card__detail">Valeur cible&nbsp;: {{ kpi_target }}</div>
+          </div>
+        </div>
+        <div class="kpi-strip__item">
+          <div class="metric-card">
+            <span class="metric-card__label">Score de priorité</span>
+            <span class="metric-card__value">{{ priority_score_display }}</span>
+            <div class="metric-card__detail">Catégorie&nbsp;: {{ category }}</div>
+          </div>
+        </div>
+        <div class="kpi-strip__item">
+          <div class="metric-card">
+            <span class="metric-card__label">Valeur nette</span>
+            <span class="metric-card__value">{{ net_annual_value_display }}</span>
+            <div class="metric-card__detail">Lecture financière indicative, à confirmer.</div>
+          </div>
+        </div>
+        <div class="kpi-strip__item">
+          <div class="metric-card">
+            <span class="metric-card__label">Risque</span>
+            <span class="metric-card__value">{{ risk_profile }}</span>
+            <div class="metric-card__detail">Sous contrôle uniquement si les garde-fous sont tenus.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="timeline-card">
+        <div class="timeline-card__meta">Chronologie indicative</div>
+        <p>{{ timeline }}</p>
+      </div>
+
+      <table class="meta-table">
+        <tbody>
+          <tr>
+            <th>Dépendances</th>
+            <td>{{ dependencies }}</td>
+          </tr>
+          <tr>
+            <th>Conditions de scale</th>
+            <td>{{ scale_conditions }}</td>
+          </tr>
+          <tr>
+            <th>Go / No-Go</th>
+            <td>{{ go_no_go }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="page">
+      <h2>6. Contrôles, tests et traçabilité</h2>
+      <p class="page__intro">
+        Le pilote doit être instrumenté pour objectiver ses résultats et documenter ses écarts.
+      </p>
+
+      <div class="section-grid">
+        <div class="section-grid__row">
+          <div class="section-grid__cell">
+            {% for block in evidence_blocks[:2] %}
+              <article class="evidence-block">
+                <div class="evidence-block__status">{{ block.status }}</div>
+                <h3>{{ block.title }}</h3>
+                <p>{{ block.summary }}</p>
+                <p class="small">{{ block.details }}</p>
+                {% if block.source_metadata %}
+                  <p class="source-metadata">
+                    {% for meta in block.source_metadata %}
+                      <span class="source-metadata__item">{{ meta.label }} · {{ meta.source_label }}</span>
+                    {% endfor %}
+                  </p>
+                {% endif %}
+              </article>
+            {% endfor %}
+          </div>
+          <div class="section-grid__cell">
+            {% for block in evidence_blocks[2:] %}
+              <article class="evidence-block">
+                <div class="evidence-block__status">{{ block.status }}</div>
+                <h3>{{ block.title }}</h3>
+                <p>{{ block.summary }}</p>
+                <p class="small">{{ block.details }}</p>
+                {% if block.source_metadata %}
+                  <p class="source-metadata">
+                    {% for meta in block.source_metadata %}
+                      <span class="source-metadata__item">{{ meta.label }} · {{ meta.source_label }}</span>
+                    {% endfor %}
+                  </p>
+                {% endif %}
+              </article>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-card">
+        <h3>Plan de test</h3>
+        <p>{{ test_plan }}</p>
+        <p class="small">Aucune trajectoire «&nbsp;30-60-90 jours&nbsp;» générique n’est imposée ici&nbsp;: le phasage détaillé reste à préciser dans le cadre du pilote réel.</p>
+      </div>
+    </section>
+
+    <section class="page">
+      <h2>7. Registre source et score détaillé</h2>
+      <table class="score-table">
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>Score</th>
+            <th>Poids</th>
+            <th>Confiance</th>
+            <th>Justification</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in score_dimensions %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td>{{ row.score }}/5</td>
+              <td>{{ row.weight }}</td>
+              <td>{{ row.confidence }}</td>
+              <td>{{ row.justification }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <table class="source-table">
+        <thead>
+          <tr>
+            <th>Champ</th>
+            <th>Clé source</th>
+            <th>Valeur de snapshot</th>
+            <th>Origine</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in source_register %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td>{{ item.key }}</td>
+              <td>{{ item.value }}</td>
+              <td>{{ item.source_label }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </body>
+</html>

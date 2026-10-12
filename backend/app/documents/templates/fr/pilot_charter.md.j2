@@ -1,0 +1,72 @@
+# {% if status == "Draft" %}BROUILLON — {% endif %}{{ document_title }} — {{ use_case_title }}
+
+- Programme : {{ program_name }}
+- Sponsor métier : {{ sponsor_name }}
+- Responsable opérationnel : {{ owner_name }}
+- Utilisateurs pilotes : {{ pilot_users }}
+- Version documentaire : v{{ version_no }}
+- Statut documentaire : {{ document_status_label }}
+
+## 1. Mandat de pilote
+
+- Périmètre retenu : {{ pilot_scope }}
+- Environnement : {{ source_environment }}
+- Validation humaine : {{ human_validation_rule }}
+- Sensibilité des données : {{ data_sensitivity_label }}
+
+## 2. Faits verrouillés
+
+{% for item in facts -%}
+### {{ item.title }}
+{% if item.ai_assisted %}{{ item.marker }} — {% endif %}{{ item.body }}
+
+Source :
+{% for meta in item.source_metadata -%}
+- {{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}
+{% endfor %}
+
+{% endfor -%}
+## 3. Hypothèses à confirmer
+
+{% for item in hypotheses -%}
+### {{ item.title }}
+{% if item.ai_assisted %}{{ item.marker }} — {% endif %}{{ item.body }}
+
+Source :
+{% for meta in item.source_metadata -%}
+- {{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}
+{% endfor %}
+
+{% endfor -%}
+## 4. Cadre opératoire recommandé
+
+{% for item in recommendations -%}
+### {{ item.title }}
+{% if item.ai_assisted %}{{ item.marker }} — {% endif %}{{ item.body }}
+
+Source :
+{% for meta in item.source_metadata -%}
+- {{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}
+{% endfor %}
+
+{% endfor -%}
+## 5. KPI, chronologie et contrôles
+
+- KPI principal : {{ kpi_baseline }}
+- Cible KPI : {{ kpi_target }}
+- Chronologie indicative : {{ timeline }}
+- Dépendances : {{ dependencies }}
+- Contrôles de risque : {{ risk_controls }}
+- Plan de test : {{ test_plan }}
+- Go / No-Go : {{ go_no_go }}
+- Conditions de scale : {{ scale_conditions }}
+
+## 6. Registre source
+
+{% for item in source_register -%}
+- {{ item.label }} ({{ item.key }}) : {{ item.value }} — {{ item.source_label }}
+{% endfor %}
+
+---
+
+Le checksum SHA-256 est calculé après rendu et stocké avec la version documentaire, sans être intégré au contenu.
