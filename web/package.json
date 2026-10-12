@@ -6,15 +6,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "tsx --test tests/unit/*.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@azure/msal-browser": "^4.26.1",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-wizard": "^0.3.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@axe-core/playwright": "^4.11.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -22,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }
