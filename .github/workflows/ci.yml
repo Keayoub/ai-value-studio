@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v6
+      - name: Install backend dependencies
+        run: |
+          uv venv --python 3.11 .venv
+          uv pip install --python .venv/bin/python -e ".[dev]" -r backend/requirements.txt
+      - name: Lint backend and framework
+        run: .venv/bin/ruff check .
+      - name: Run Python tests
+        run: .venv/bin/pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        run: npm ci
+      - name: Typecheck web app
+        run: npm run typecheck
+      - name: Lint web app
+        run: npm run lint
+      - name: Build web app
+        run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build static export
+        run: npm run build
+      - name: Run Playwright e2e
+        run: npm run test:e2e
+
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check forbidden tracked artifacts
+        run: |
+          set -eu
+          forbidden="$(
+            git ls-files |
+              grep -E '(^|/)(\.env($|\..+$)|[^/]+\.db$|[^/]+\.sqlite[^/]*$|server\.(out|err)$|[^/]+\.orig$|[^/]+\.backup[^/]*$|node_modules/|out/)' |
+              grep -Ev '(^|/)\.env\.example$' || true
+          )"
+          if [ -n "$forbidden" ]; then
+            printf 'Forbidden tracked artifacts found:\n%s\n' "$forbidden"
+            exit 1
+          fi
+      - name: Run simple secret scan
+        run: |
+          set -eu
+          if git grep -IlE '(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|-----BEGIN (EC|RSA|OPENSSH|DSA|PGP) PRIVATE KEY-----)' -- \
+            ':(glob)**/*.py' \
+            ':(glob)**/*.ts' \
+            ':(glob)**/*.tsx' \
+            ':(glob)**/*.js' \
+            ':(glob)**/*.jsx' \
+            ':(glob)**/*.json' \
+            ':(glob)**/*.md' \
+            ':(glob)**/*.toml' \
+            ':(glob)**/*.yml' \
+            ':(glob)**/*.yaml' \
+            ':(glob)**/.env*'; then
+            echo "Potential secrets detected."
+            exit 1
+          fi
