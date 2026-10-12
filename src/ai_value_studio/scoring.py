@@ -50,20 +50,17 @@ def classify_use_case(
     risk_governance_score: int,
     readiness_average: float,
     thresholds: CategoryThresholds | None = None,
+    business_value_score: int | None = None,
 ) -> str:
     """Classify use case according to studio portfolio buckets."""
     limits = thresholds or CategoryThresholds()
+    value_score = priority_score if business_value_score is None else business_value_score
     if (
-        priority_score >= limits.quick_win_priority_min
+        value_score >= limits.quick_win_priority_min
         and readiness_average >= limits.quick_win_readiness_min
         and risk_governance_score >= limits.quick_win_governance_min
     ):
         return "Quick Win"
-    if (
-        priority_score >= limits.strategic_bet_priority_min
-        and readiness_average < limits.quick_win_readiness_min
-    ):
-        return "Strategic Bet"
     if readiness_average < limits.foundation_readiness_max:
         return "Foundation"
     if (
@@ -71,6 +68,14 @@ def classify_use_case(
         and risk_governance_score <= limits.reject_governance_max
     ):
         return "Reject"
+    if (
+        (
+            value_score >= limits.quick_win_priority_min
+            or priority_score >= limits.strategic_bet_priority_min
+        )
+        and readiness_average < limits.quick_win_readiness_min
+    ):
+        return "Strategic Bet"
     return "Defer"
 
 
@@ -178,6 +183,9 @@ def compute_scorecard(
     )
     priority_score = compute_priority_score(scored_assessment)
     readiness_average = compute_readiness_average(dimensions)
+    business_value_score = next(
+        score.value for score in dimensions if score.dimension == "business_value"
+    )
     governance_score = next(
         score.value for score in dimensions if score.dimension == "risk_governance"
     )
@@ -186,6 +194,7 @@ def compute_scorecard(
         risk_governance_score=governance_score,
         readiness_average=readiness_average,
         thresholds=config.thresholds,
+        business_value_score=business_value_score,
     )
     return ScorecardComputation(
         priority_score=priority_score,

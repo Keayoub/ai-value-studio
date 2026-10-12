@@ -18,7 +18,7 @@ from app.security.roles import (
     ProductRole,
     effective_permissions,
 )
-from sqlalchemy import exists
+from sqlalchemy import exists, false, literal, true
 from sqlmodel import Session, select
 
 DEFAULT_PAGE_SIZE = 25
@@ -95,14 +95,8 @@ class ScopedRepository:
         if Permission.PROGRAM_READ not in self.context.permissions:
             return [], None
 
-        assignment_exists = exists(
-            select(ProgramMember.id).where(
-                ProgramMember.program_id == Program.id,
-                ProgramMember.membership_id == self.context.membership.id,
-            )
-        )
         statement = statement.where(
-            (Program.sponsor_membership_id == self.context.membership.id) | assignment_exists
+            self.program_visibility_clause(Program.id, Program.sponsor_membership_id)
         )
         return self._paginate(statement, page.limit, page.cursor)
 
@@ -170,26 +164,13 @@ class ScopedRepository:
             )
             .order_by(UseCase.created_at.asc(), UseCase.id.asc())
         )
-        if not self._can_manage_use_cases():
-            sponsor_can_view_all = (
-                program.sponsor_membership_id == self.context.membership.id
-                or (
-                    self.context.membership.role == ProductRole.SPONSOR.value
-                    and self.get_program_member(program.id, self.context.membership.id) is not None
-                )
+        statement = statement.where(
+            self.use_case_visibility_clause(
+                program_id_column=UseCase.program_id,
+                program_sponsor_membership_column=literal(program.sponsor_membership_id),
+                use_case_owner_membership_column=UseCase.owner_membership_id,
             )
-            if sponsor_can_view_all:
-                pass
-            else:
-                statement = statement.where(
-                    UseCase.owner_membership_id == self.context.membership.id,
-                    exists(
-                        select(ProgramMember.id).where(
-                            ProgramMember.program_id == program.id,
-                            ProgramMember.membership_id == self.context.membership.id,
-                        )
-                    ),
-                )
+        )
         return self._paginate(statement, page.limit, page.cursor)
 
     def get_use_case(self, program: Program, use_case_id: uuid.UUID) -> UseCase | None:
@@ -240,6 +221,35 @@ class ScopedRepository:
     def _can_manage_use_cases(self) -> bool:
         return Permission.USE_CASE_UPDATE in self.context.permissions
 
+    def program_visibility_clause(self, program_id_column, sponsor_membership_column):
+        if Permission.PROGRAM_READ not in self.context.permissions:
+            return false()
+        if self._can_manage_programs():
+            return true()
+        return (sponsor_membership_column == self.context.membership.id) | (
+            self._program_assignment_exists_clause(program_id_column)
+        )
+
+    def use_case_visibility_clause(
+        self,
+        *,
+        program_id_column,
+        program_sponsor_membership_column,
+        use_case_owner_membership_column,
+    ):
+        if Permission.USE_CASE_READ not in self.context.permissions:
+            return false()
+        if self._can_manage_use_cases():
+            return true()
+
+        assignment_exists = self._program_assignment_exists_clause(program_id_column)
+        sponsor_can_view_all = program_sponsor_membership_column == self.context.membership.id
+        if self.context.membership.role == ProductRole.SPONSOR.value:
+            return sponsor_can_view_all | assignment_exists
+        return sponsor_can_view_all | (
+            (use_case_owner_membership_column == self.context.membership.id) & assignment_exists
+        )
+
     def _has_program_visibility(self, program: Program) -> bool:
         if Permission.PROGRAM_READ not in self.context.permissions:
             return False
@@ -261,6 +271,14 @@ class ScopedRepository:
         if use_case.owner_membership_id != self.context.membership.id:
             return False
         return self.get_program_member(program.id, self.context.membership.id) is not None
+
+    def _program_assignment_exists_clause(self, program_id_column):
+        return exists(
+            select(ProgramMember.id).where(
+                ProgramMember.program_id == program_id_column,
+                ProgramMember.membership_id == self.context.membership.id,
+            )
+        )
 
 
 def _slice_rows(rows: list, limit: int) -> tuple[list, str | None]:

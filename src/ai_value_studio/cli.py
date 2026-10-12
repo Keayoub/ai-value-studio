@@ -42,7 +42,13 @@ def main() -> None:
         or sum(s.value for s in scores if s.dimension != "risk_governance") / (len(scores) - 1)
     )
     risk_score = next(s.value for s in scores if s.dimension == "risk_governance")
-    category = classify_use_case(priority_score, risk_score, readiness_avg)
+    business_value_score = next(s.value for s in scores if s.dimension == "business_value")
+    category = classify_use_case(
+        priority_score,
+        risk_score,
+        readiness_avg,
+        business_value_score=business_value_score,
+    )
 
     profile = UseCaseProfile(**payload["use_case_profile"])
 

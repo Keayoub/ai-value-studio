@@ -19,6 +19,7 @@ type StudioCopy = {
     workspace: string;
     program: string;
     useCase: string;
+    portfolio: string;
     members: string;
   };
   navigation: {
@@ -26,6 +27,7 @@ type StudioCopy = {
     workspace: string;
     program: string;
     useCase: string;
+    portfolio: string;
     members: string;
     backToWorkspace: string;
     backToProgram: string;
@@ -178,6 +180,7 @@ const studioCopy: Record<StudioLocale, StudioCopy> = {
       workspace: "Espace",
       program: "Programme",
       useCase: "Cas d’usage",
+      portfolio: "Portefeuille",
       members: "Membres",
     },
     navigation: {
@@ -185,6 +188,7 @@ const studioCopy: Record<StudioLocale, StudioCopy> = {
       workspace: "Espace",
       program: "Programme",
       useCase: "Cas d’usage",
+      portfolio: "Portefeuille",
       members: "Membres",
       backToWorkspace: "Retour à l’espace",
       backToProgram: "Retour au programme",
@@ -351,6 +355,7 @@ const studioCopy: Record<StudioLocale, StudioCopy> = {
       workspace: "Workspace",
       program: "Program",
       useCase: "Use case",
+      portfolio: "Portfolio",
       members: "Members",
     },
     navigation: {
@@ -358,6 +363,7 @@ const studioCopy: Record<StudioLocale, StudioCopy> = {
       workspace: "Workspace",
       program: "Program",
       useCase: "Use case",
+      portfolio: "Portfolio",
       members: "Members",
       backToWorkspace: "Back to workspace",
       backToProgram: "Back to program",

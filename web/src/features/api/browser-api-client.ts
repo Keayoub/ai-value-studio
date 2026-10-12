@@ -10,6 +10,7 @@ import type {
   MeResponse,
   ProblemDetail,
   Program,
+  PortfolioResponse,
   ProgramMember,
   ProgramStatus,
   ReviewComment,
@@ -110,6 +111,32 @@ export class BrowserApiClient {
 
   async listPrograms(workspaceId: string): Promise<CursorPage<Program>> {
     return this.request<CursorPage<Program>>(`/workspaces/${workspaceId}/programs`);
+  }
+
+  async getPortfolio(
+    workspaceId: string,
+    filters: {
+      programId?: string | null;
+      status?: string | null;
+      department?: string | null;
+      risk?: string | null;
+    } = {},
+  ): Promise<PortfolioResponse> {
+    const query = new URLSearchParams();
+    if (filters.programId) {
+      query.set("program_id", filters.programId);
+    }
+    if (filters.status) {
+      query.set("status", filters.status);
+    }
+    if (filters.department) {
+      query.set("department", filters.department);
+    }
+    if (filters.risk) {
+      query.set("risk", filters.risk);
+    }
+    const suffix = query.size ? `?${query.toString()}` : "";
+    return this.request<PortfolioResponse>(`/workspaces/${workspaceId}/portfolio${suffix}`);
   }
 
   async createProgram(

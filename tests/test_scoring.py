@@ -53,11 +53,57 @@ class ScoringTests(unittest.TestCase):
 
     def test_classification_quick_win(self) -> None:
         category = classify_use_case(
-            priority_score=4.2,
-            risk_governance_score=4,
-            readiness_average=4.0,
+            priority_score=3.35,
+            risk_governance_score=3,
+            readiness_average=3.8,
+            business_value_score=4,
         )
         self.assertEqual(category, "Quick Win")
+
+    def test_classification_strategic_bet_accepts_high_value_or_high_priority(self) -> None:
+        by_value = classify_use_case(
+            priority_score=3.6,
+            risk_governance_score=4,
+            readiness_average=3.79,
+            business_value_score=4,
+        )
+        by_priority = classify_use_case(
+            priority_score=4.0,
+            risk_governance_score=4,
+            readiness_average=3.79,
+            business_value_score=3,
+        )
+        self.assertEqual(by_value, "Strategic Bet")
+        self.assertEqual(by_priority, "Strategic Bet")
+
+    def test_classification_foundation_reject_and_precedence_boundaries(self) -> None:
+        self.assertEqual(
+            classify_use_case(
+                priority_score=4.4,
+                risk_governance_score=4,
+                readiness_average=2.99,
+                business_value_score=5,
+            ),
+            "Foundation",
+        )
+        self.assertEqual(
+            classify_use_case(
+                priority_score=2.79,
+                risk_governance_score=2,
+                readiness_average=3.0,
+                business_value_score=2,
+            ),
+            "Reject",
+        )
+        self.assertEqual(
+            classify_use_case(
+                priority_score=2.5,
+                risk_governance_score=2,
+                readiness_average=2.8,
+                business_value_score=2,
+            ),
+            "Foundation",
+        )
 
     def test_scorecard_rounding_and_readiness_average(self) -> None:
         result = compute_scorecard(
@@ -93,6 +139,35 @@ class ScoringTests(unittest.TestCase):
             compute_readiness_average(result.dimensions),
         )
         self.assertEqual(len(result.dimensions), 6)
+
+    def test_scorecard_classification_uses_business_value_threshold(self) -> None:
+        result = compute_scorecard(
+            assessment=self._assessment(),
+            signals=ScoringSignals(
+                data_availability="available",
+                data_quality_score=4,
+                pilot_accessibility="ready",
+                effort_band="medium",
+                support_owner_present=True,
+                team_skills_present=True,
+                training_needs_present=True,
+                risk_profile="High",
+                human_validation_required="mandatory",
+                value_confidence="medium",
+            ),
+            configuration=ScoreConfiguration(),
+            manual_overrides={
+                "business_value": (4, "Boundary business value"),
+                "current_friction": (1, "Keep weighted priority below 4"),
+                "data_feasibility": (4, "Readiness boundary"),
+                "technical_feasibility": (4, "Readiness boundary"),
+                "adoption_potential": (4, "Readiness boundary"),
+                "risk_governance": (3, "Governance boundary"),
+            },
+        )
+        self.assertLess(result.priority_score, 4.0)
+        self.assertEqual(result.readiness_average, 4.0)
+        self.assertEqual(result.category, "Quick Win")
 
     def test_value_assessment_scenarios_and_sensitivity(self) -> None:
         result = compute_value_assessment(

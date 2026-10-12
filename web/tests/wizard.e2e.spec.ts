@@ -100,6 +100,10 @@ const SUBMIT_OVERRIDE = /Créer la nouvelle version|Create new version/;
 const SCORECARD_RECALCULATED_TOAST =
   /Scorecard recalculé|Scorecard recalculated/;
 const DOCUMENT_CENTRE_TITLE = /Centre documentaire|Document centre/;
+const PORTFOLIO_TITLE = /Matrice portefeuille IA|AI portfolio matrix/;
+const PORTFOLIO_TABLE_VIEW = /Vue tableau|Table view/;
+const PORTFOLIO_MATRIX_VIEW = /Vue matrice|Matrix view/;
+const PORTFOLIO_PROGRAM_FILTER = /Programme|Program/;
 const REVENUE_CAPACITY_LABEL =
   /Impact annuel revenu\/capacité|Annual revenue\/capacity impact/;
 const OVERRIDE_REASON_LABEL = /Raison de la surcharge|Override reason/;
@@ -412,6 +416,7 @@ async function expectNoTaggedAxeViolations(
   page: Page,
   options: { allowRuleIds?: string[] } = {},
 ) {
+  await waitForStableAxeTarget(page);
   const accessibilityScan = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa"])
     .analyze();
@@ -420,6 +425,44 @@ async function expectNoTaggedAxeViolations(
     (violation) => !allowedRuleIds.has(violation.id),
   );
   expect(wcagViolations).toEqual([]);
+}
+
+async function waitForStableAxeTarget(page: Page) {
+  await page.waitForLoadState("domcontentloaded");
+  await expect
+    .poll(() => page.title(), {
+      message: "Expected a non-empty document title before running axe.",
+      timeout: 5_000,
+    })
+    .toMatch(/\S/);
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+  });
+  await page.waitForFunction(
+    () =>
+      document
+        .getAnimations()
+        .filter((animation) => {
+          const timing = animation.effect?.getComputedTiming();
+          return (
+            typeof timing?.duration === "number" &&
+            timing.duration > 0 &&
+            timing.iterations !== Infinity
+          );
+        })
+        .every(
+          (animation) =>
+            animation.playState === "finished" ||
+            animation.playState === "idle",
+        ),
+    null,
+    { timeout: 5_000 },
+  );
 }
 
 function numberPattern(value: number) {
@@ -733,6 +776,52 @@ async function completeAndSubmitWizard(page: Page) {
     .getByLabel("Notes de revue")
     .fill("Pilote limité au tri initial avec revue humaine obligatoire.");
   await page.getByRole("button", { name: SUBMIT_LABEL }).click();
+}
+
+async function seedScorecardSnapshot(
+  page: Page,
+  request: APIRequestContext,
+  {
+    bootstrap,
+    consultantHeaders,
+    revenueCapacityValue,
+  }: {
+    bootstrap: BootstrapResult;
+    consultantHeaders: Record<string, string>;
+    revenueCapacityValue: number;
+  },
+) {
+  await openUseCase(page, bootstrap);
+  await completeAndSubmitWizard(page);
+  const assessmentResponse = await request.put(
+    `http://127.0.0.1:8010/api/v1/workspaces/${bootstrap.workspaceId}/programs/${bootstrap.programId}/use-cases/${bootstrap.useCaseId}/value-assessment`,
+    {
+      headers: consultantHeaders,
+      data: {
+        annual_volume: 12000,
+        time_saved_hours: 0.2,
+        hourly_cost: 45,
+        error_reduction_rate: 20,
+        average_error_cost: 85,
+        revenue_capacity_value: revenueCapacityValue,
+        estimated_annual_cost: 25000,
+        time_to_impact_months: 4,
+        primary_kpi: "Temps moyen de qualification",
+        kpi_target: "-30%",
+        confidence: "medium",
+        currency: "EUR",
+      },
+    },
+  );
+  await expectApiOk(assessmentResponse, "Saving portfolio value assessment");
+
+  const recalculateResponse = await request.post(
+    `http://127.0.0.1:8010/api/v1/workspaces/${bootstrap.workspaceId}/programs/${bootstrap.programId}/use-cases/${bootstrap.useCaseId}/scorecards/recalculate`,
+    {
+      headers: consultantHeaders,
+    },
+  );
+  await expectApiOk(recalculateResponse, "Recalculating portfolio scorecard");
 }
 
 test("completes the persisted eight-step wizard, reloads cleanly, and submits", async ({
@@ -1319,6 +1408,65 @@ test("routes sponsor approval through the review panel and inbox", async ({
     generatedBody.current_version.sha256,
   );
   expect((await download.body()).subarray(0, 4).toString()).toBe("%PDF");
+});
+
+test("renders a populated portfolio matrix, filters it, and passes axe smoke", async ({
+  page,
+  request,
+}) => {
+  await proxyApiRequests(page, request);
+  const consultant = await fetchDevIdentityHeaders(request, {
+    subjectId: "consultant",
+    displayName: "Local Consultant",
+    role: "Consultant",
+  });
+  const portfolioTimestamp = Date.now();
+  const firstProgramName = `Programme portefeuille A ${portfolioTimestamp}`;
+  const firstUseCaseTitle = `Cas portefeuille A ${portfolioTimestamp}`;
+  const secondProgramName = `Programme portefeuille B ${portfolioTimestamp}`;
+  const secondUseCaseTitle = `Cas portefeuille B ${portfolioTimestamp}`;
+  const firstBootstrap = await bootstrapUseCase(request, {
+    programName: firstProgramName,
+    useCaseTitle: firstUseCaseTitle,
+  });
+  const secondBootstrap = await bootstrapUseCase(request, {
+    programName: secondProgramName,
+    useCaseTitle: secondUseCaseTitle,
+  });
+
+  await selectDevIdentity(page, request, {
+    subjectId: "consultant",
+    displayName: "Local Consultant",
+    role: "Consultant",
+  });
+
+  await seedScorecardSnapshot(page, request, {
+    bootstrap: firstBootstrap,
+    consultantHeaders: consultant.headers,
+    revenueCapacityValue: 15000,
+  });
+  await seedScorecardSnapshot(page, request, {
+    bootstrap: secondBootstrap,
+    consultantHeaders: consultant.headers,
+    revenueCapacityValue: 45000,
+  });
+
+  await page.goto(`/studio/portfolio?workspaceId=${firstBootstrap.workspaceId}`);
+  await expect(page.getByRole("heading", { name: PORTFOLIO_TITLE })).toBeVisible();
+  await expect(page.getByText(firstBootstrap.useCaseId)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: new RegExp(firstUseCaseTitle) })).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(secondUseCaseTitle) })).toBeVisible();
+  await expectNoTaggedAxeViolations(page);
+
+  await page.getByRole("button", { name: PORTFOLIO_TABLE_VIEW }).click();
+  await expect(page.getByRole("table")).toBeVisible();
+  await page.getByLabel(PORTFOLIO_PROGRAM_FILTER).selectOption(secondBootstrap.programId);
+  await expect(page.getByRole("button", { name: secondUseCaseTitle, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: firstUseCaseTitle, exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: PORTFOLIO_MATRIX_VIEW }).click();
+  await expect(page.getByRole("link", { name: /Ouvrir le cas d’usage|Open use case/ }).last()).toBeVisible();
+  await expectNoTaggedAxeViolations(page);
 });
 
 test("supports the changes-request loop before creating a new draft version", async ({

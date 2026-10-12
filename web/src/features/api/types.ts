@@ -327,6 +327,73 @@ export type UseCaseScorecards = {
   can_override: boolean;
 };
 
+export type PortfolioProgramFilterOption = {
+  id: string;
+  name: string;
+  count: number;
+};
+
+export type PortfolioValueFilterOption = {
+  value: string;
+  label: string;
+  count: number;
+};
+
+export type PortfolioAppliedFilters = {
+  program_id: string | null;
+  status: UseCaseStatus | null;
+  department: string | null;
+  risk_profile: string | null;
+};
+
+export type PortfolioAvailableFilters = {
+  programs: PortfolioProgramFilterOption[];
+  statuses: PortfolioValueFilterOption[];
+  departments: PortfolioValueFilterOption[];
+  risks: PortfolioValueFilterOption[];
+};
+
+export type PortfolioSummary = {
+  total_items: number;
+  category_counts: Record<string, number>;
+};
+
+export type PortfolioItem = {
+  workspace_id: string;
+  program_id: string;
+  use_case_id: string;
+  program_name: string;
+  use_case_title: string;
+  department: string | null;
+  status: UseCaseStatus;
+  recommendation: string | null;
+  category: "Quick Win" | "Strategic Bet" | "Foundation" | "Defer" | "Reject" | string;
+  category_explanation_fr: string;
+  priority_score: number;
+  score_version: number;
+  confidence_level: string;
+  business_value_score: number;
+  readiness_average: number;
+  matrix_x: number;
+  matrix_y: number;
+  risk_profile: "Low" | "Medium" | "High" | "Critical" | string;
+  risk_color: string;
+  risk_shape: "circle" | "square" | "diamond" | "triangle" | string;
+  risk_pattern: string;
+  effort_band: "low" | "medium" | "high" | string | null;
+  effort_label_fr: string | null;
+  currency: string;
+  net_annual_value: number;
+  updated_at: string;
+};
+
+export type PortfolioResponse = {
+  items: PortfolioItem[];
+  summary: PortfolioSummary;
+  applied_filters: PortfolioAppliedFilters;
+  available_filters: PortfolioAvailableFilters;
+};
+
 export type DocumentEligibility = {
   can_generate_markdown: boolean;
   can_generate_pdf: boolean;

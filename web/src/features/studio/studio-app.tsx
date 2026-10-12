@@ -48,6 +48,7 @@ import {
   UnauthenticatedContent,
 } from "@/features/studio/mode-fragment";
 import { DocumentCentre } from "@/features/studio/document-centre";
+import { PortfolioMatrix } from "@/features/studio/portfolio-matrix";
 import { ReviewInboxCard } from "@/features/studio/review-inbox";
 import { LabeledField } from "@/features/studio/shared";
 import { UseCaseReviewPanel } from "@/features/studio/use-case-review";
@@ -55,7 +56,7 @@ import { UseCaseScorecard } from "@/features/studio/use-case-scorecard";
 import { UseCaseWizard } from "@/features/studio/use-case-wizard";
 import { cn } from "@/lib/cn";
 
-type StudioRoute = "home" | "workspace" | "program" | "use-case" | "members";
+type StudioRoute = "home" | "workspace" | "program" | "use-case" | "portfolio" | "members";
 
 const runtimeConfig = getPublicRuntimeConfig(process.env);
 
@@ -108,6 +109,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
         { id: "workspace", label: t.steps.workspace },
         { id: "program", label: t.steps.program },
         { id: "use-case", label: t.steps.useCase },
+        { id: "portfolio", label: t.steps.portfolio },
         { id: "members", label: t.steps.members },
       ] satisfies Array<{ id: StudioRoute; label: string }>,
     [t],
@@ -513,6 +515,24 @@ export function StudioApp({ route }: { route: StudioRoute }) {
       );
     }
 
+    if (route === "portfolio") {
+      if (!workspaceId) {
+        return (
+          <EmptyState
+            title={t.workspace.inaccessibleTitle}
+            description={t.workspace.inaccessibleDescription}
+          />
+        );
+      }
+      return (
+        <PortfolioMatrix
+          workspaceId={workspaceId}
+          visiblePrograms={programs}
+          locale={language}
+        />
+      );
+    }
+
     if (!selectedProgram) {
       return (
         <EmptyState
@@ -837,6 +857,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
           <NavLink href={hrefFor("workspace", { workspaceId })} label={t.navigation.workspace} />
           <NavLink href={hrefFor("program", { workspaceId, programId })} label={t.navigation.program} />
           <NavLink href={hrefFor("use-case", { workspaceId, programId, useCaseId })} label={t.navigation.useCase} />
+          <NavLink href={hrefFor("portfolio", { workspaceId, programId })} label={t.navigation.portfolio} />
           <NavLink href={hrefFor("members", { workspaceId })} label={t.navigation.members} />
         </nav>
 
@@ -1125,7 +1146,9 @@ function hrefFor(
           ? "/studio/program"
           : route === "use-case"
             ? "/studio/use-case"
-            : "/studio/admin/members";
+            : route === "portfolio"
+              ? "/studio/portfolio"
+              : "/studio/admin/members";
   const query = new URLSearchParams();
   if (params.workspaceId) {
     query.set("workspaceId", params.workspaceId);
