@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict
 
 from .models import LlmKickstartOutput, UseCaseProfile
 
 
 def render_amoa_implementation_plan(
     profile: UseCaseProfile,
-    value_estimates: Dict[str, float],
+    value_estimates: dict[str, float],
     priority_score: float,
     category: str,
     kickstart: LlmKickstartOutput | None = None,
@@ -18,7 +17,11 @@ def render_amoa_implementation_plan(
         raise ValueError("language must be 'fr' or 'en'")
 
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    ai_marker = ("Oui" if kickstart is not None else "Non") if language == "fr" else ("Yes" if kickstart is not None else "No")
+    ai_marker = (
+        "Oui" if kickstart is not None else "Non"
+    ) if language == "fr" else (
+        "Yes" if kickstart is not None else "No"
+    )
 
     risks = "\n".join(f"- {r}" for r in profile.key_risks)
     deps = "\n".join(f"- {d}" for d in profile.dependencies)
