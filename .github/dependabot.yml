@@ -2,8 +2,16 @@ version: 2
 updates:
   - package-ecosystem: "pip"
     directory: "/"
+    open-pull-requests-limit: 5
     schedule:
       interval: "weekly"
+    groups:
+      pip-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     # PR #20 deferral table: https://github.com/Keayoub/ai-value-studio/pull/20
     # defers WeasyPrint v70 because Pilot Charter pagination drops from 7 to 6 pages;
     # keep >=66,<67 until template-layout revalidation is complete.
@@ -14,8 +22,16 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/web"
+    open-pull-requests-limit: 5
     schedule:
       interval: "weekly"
+    groups:
+      web-npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     # PR #20 deferral table: https://github.com/Keayoub/ai-value-studio/pull/20
     # defers ESLint 10 until eslint-plugin-import, eslint-plugin-jsx-a11y,
     # and eslint-plugin-react add ESLint 10 peer support.
@@ -26,10 +42,26 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/electron-app"
+    open-pull-requests-limit: 5
     schedule:
       interval: "weekly"
+    groups:
+      electron-app-npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    open-pull-requests-limit: 5
     schedule:
       interval: "weekly"
+    groups:
+      github-actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
