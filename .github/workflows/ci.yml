@@ -33,6 +33,12 @@ jobs:
     defaults:
       run:
         working-directory: web
+    env:
+      NEXT_PUBLIC_AUTH_MODE: entra
+      NEXT_PUBLIC_API_BASE_URL: https://api.example.com/api/v1
+      NEXT_PUBLIC_ENTRA_CLIENT_ID: 00000000-0000-0000-0000-000000000000
+      NEXT_PUBLIC_ENTRA_TENANT_ID: common
+      NEXT_PUBLIC_API_SCOPE: api://avs-api/access_as_user
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,6 +56,67 @@ jobs:
         run: npm run build
       - name: Audit runtime web dependencies
         run: npm audit --audit-level=high --omit=dev
+
+  electron:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            electron-app/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v6
+      - name: Install backend dependencies
+        run: |
+          uv venv --python 3.11 .venv
+          uv pip install --python .venv/bin/python -e ".[dev,backend]" -r backend/requirements.txt
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Build dev renderer for Electron smoke
+        working-directory: web
+        env:
+          NEXT_PUBLIC_AUTH_MODE: dev
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8010/api/v1
+        run: npm run build
+      - name: Install Electron dependencies
+        working-directory: electron-app
+        run: npm ci
+      - name: Install xvfb
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb
+      - name: Typecheck Electron app
+        working-directory: electron-app
+        run: npm run typecheck
+      - name: Lint Electron app
+        working-directory: electron-app
+        run: npm run lint
+      - name: Run Electron unit tests
+        working-directory: electron-app
+        run: npm run test:unit
+      - name: Package Electron app
+        working-directory: electron-app
+        run: npm run pack
+      - name: Run Electron smoke test
+        working-directory: electron-app
+        run: npm run test:smoke
+      - name: Build production Entra renderer
+        working-directory: web
+        env:
+          NEXT_PUBLIC_AUTH_MODE: entra
+          NEXT_PUBLIC_API_BASE_URL: https://api.example.com/api/v1
+          NEXT_PUBLIC_ENTRA_CLIENT_ID: 00000000-0000-0000-0000-000000000000
+          NEXT_PUBLIC_ENTRA_TENANT_ID: common
+          NEXT_PUBLIC_API_SCOPE: api://avs-api/access_as_user
+        run: npm run build
+      - name: Package Electron app against production renderer
+        working-directory: electron-app
+        run: npm run pack
 
   e2e:
     runs-on: ubuntu-latest
