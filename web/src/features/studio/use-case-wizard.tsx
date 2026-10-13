@@ -33,6 +33,7 @@ import type {
 } from "@/features/api/types";
 import { useAuth } from "@/features/auth/auth-context";
 import { getPublicRuntimeConfig } from "@/features/auth/runtime";
+import { localizeSeededDevFixtureName } from "@/features/studio/copy.dev";
 import { StepForm, ReviewPanel, DerivedPanel } from "@/features/studio/wizard/panels";
 import { type Locale, wizardCopy } from "@/features/studio/wizard/copy";
 import {
@@ -409,9 +410,12 @@ export function UseCaseWizard({
     () =>
       members.map((member) => ({
         id: member.membership_id,
-        label: member.identity.display_name ?? member.membership_id,
+        label:
+          (runtimeConfig.authMode === "dev"
+            ? localizeSeededDevFixtureName(locale, member.identity.display_name)
+            : member.identity.display_name) ?? member.membership_id,
       })),
-    [members],
+    [locale, members],
   );
 
   const persistClientDraft = useCallback(

@@ -23,6 +23,8 @@ import type {
 import { useAuth } from "@/features/auth/auth-context";
 import { getPublicRuntimeConfig } from "@/features/auth/runtime";
 import { formatUseCaseStatusLabel } from "@/features/studio/copy";
+import { localizeSeededDevFixtureName } from "@/features/studio/copy.dev";
+import { isPermissionDeniedError } from "@/features/studio/data-surface";
 
 const runtimeConfig = getPublicRuntimeConfig(process.env);
 
@@ -36,6 +38,9 @@ const reviewCopy = {
     loading: "Chargement de la revue…",
     retry: "Réessayer",
     loadError: "Impossible de charger la revue.",
+    permissionDeniedTitle: "Revue indisponible",
+    permissionDeniedDescription:
+      "Vous n’avez pas l’autorisation d’afficher cette revue sponsor pour le moment.",
     noReviewTitle: "Aucune revue soumise",
     noReviewDescription:
       "La revue s’affiche après la soumission de la version actuelle de l’évaluation. Les cycles précédents restent consultables ci-dessous.",
@@ -92,6 +97,9 @@ const reviewCopy = {
     loading: "Loading review…",
     retry: "Retry",
     loadError: "We could not load this review.",
+    permissionDeniedTitle: "Review unavailable",
+    permissionDeniedDescription:
+      "You do not have permission to view this sponsor review right now.",
     noReviewTitle: "No submitted review",
     noReviewDescription:
       "The review appears after the current assessment version is submitted. Earlier cycles remain available below for reference.",
@@ -171,8 +179,11 @@ function statusTone(status: string) {
   return "info" as const;
 }
 
-function displayName(name: string | null, fallback: string) {
-  return name?.trim() || fallback;
+function displayName(name: string | null, fallback: string, locale: Locale) {
+  const resolved = name?.trim() || fallback;
+  return runtimeConfig.authMode === "dev"
+    ? (localizeSeededDevFixtureName(locale, resolved) ?? fallback)
+    : resolved;
 }
 
 function reviewVersionLabel(locale: Locale, version: number) {
@@ -233,7 +244,7 @@ export function UseCaseReviewPanel({
 
   const [state, setState] = useState<ReviewState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailure, setLoadFailure] = useState<unknown>(null);
   const [recommendation, setRecommendation] = useState<ReviewRecommendation>(
     initialRecommendation(useCase),
   );
@@ -247,16 +258,16 @@ export function UseCaseReviewPanel({
 
   const loadState = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadFailure(null);
     try {
       const nextState = await api.getReviewState(workspaceId, programId, useCase.id);
       setState(nextState);
     } catch (nextError) {
-      setError(problemMessage(nextError, copy.loadError));
+      setLoadFailure(nextError);
     } finally {
       setLoading(false);
     }
-  }, [api, copy.loadError, programId, useCase.id, workspaceId]);
+  }, [api, programId, useCase.id, workspaceId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -382,85 +393,102 @@ export function UseCaseReviewPanel({
   return (
     <Card>
       <CardHeader title={copy.title} description={copy.description} />
-      {loading ? (
-        <p className="text-sm text-[var(--studio-muted)]">{copy.loading}</p>
-      ) : error ? (
-        <div className="space-y-4">
-          <p className="text-sm text-[var(--studio-danger)]">{error}</p>
-          <Button variant="secondary" onClick={() => void loadState()}>
-            {copy.retry}
-          </Button>
-        </div>
-      ) : !state?.review ? (
-        state?.can_submit_review ? (
-          <div className="space-y-4">
-            <div className="rounded-2xl bg-[var(--studio-surface-subtle)] p-4 text-sm text-[var(--studio-muted)]">
-              {copy.submitReviewHelp}
-            </div>
-            {currentAssessmentVersion ? (
-              <p className="text-sm font-medium text-[var(--studio-foreground)]">
-                {copy.currentAssessmentVersion} {currentAssessmentVersion}
-              </p>
-            ) : null}
-            <label className="space-y-2 text-sm">
-              <span className="font-medium text-[var(--studio-foreground)]">
-                {copy.recommendation}
-              </span>
-              <Select
-                value={recommendation}
-                onChange={(event) =>
-                  setRecommendation(event.target.value as ReviewRecommendation)
-                }
-              >
-                {recommendationOptions(locale).map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label className="space-y-2 text-sm">
-              <span className="font-medium text-[var(--studio-foreground)]">{copy.summary}</span>
-              <Textarea
-                value={summary}
-                placeholder={copy.recommendationPlaceholder}
-                onChange={(event) => setSummary(event.target.value)}
-              />
-            </label>
-            <label className="space-y-2 text-sm">
-              <span className="font-medium text-[var(--studio-foreground)]">{copy.risks}</span>
-              <Textarea
-                value={risksText}
-                placeholder={copy.risksPlaceholder}
-                onChange={(event) => setRisksText(event.target.value)}
-              />
-            </label>
-            <Button
-              onClick={() => void handleCreateReview()}
-              disabled={submitting || !summary.trim()}
-            >
-              {copy.submitReview}
-            </Button>
-            {state.review_history.length > 0 ? (
-              <ReviewHistorySection locale={locale} reviews={state.review_history} />
-            ) : null}
-          </div>
-        ) : (
-          <div className="space-y-4">
+      <div aria-busy={loading || submitting} className="space-y-4">
+        {loading ? (
+          <p role="status" aria-live="polite" className="text-sm text-[var(--studio-muted)]">
+            {copy.loading}
+          </p>
+        ) : loadFailure ? (
+          isPermissionDeniedError(loadFailure) ? (
             <EmptyState
-              title={copy.noReviewTitle}
-              description={
-                useCase.status === "Submitted"
-                  ? copy.noReviewDescription
-                  : `${copy.noReviewDescription} ${formatUseCaseStatusLabel(locale, useCase.status)}.`
-              }
+              title={copy.permissionDeniedTitle}
+              description={copy.permissionDeniedDescription}
             />
-            {state?.review_history.length ? (
-              <ReviewHistorySection locale={locale} reviews={state.review_history} />
-            ) : null}
-          </div>
-        )
-      ) : (
+          ) : (
+            <EmptyState
+              title={copy.loadError}
+              description={problemMessage(loadFailure, copy.loadError)}
+              actionLabel={copy.retry}
+              onAction={() => void loadState()}
+            />
+          )
+        ) : !state ? (
+          <EmptyState
+            title={copy.loadError}
+            description={copy.loadError}
+            actionLabel={copy.retry}
+            onAction={() => void loadState()}
+          />
+        ) : !state.review ? (
+          state.can_submit_review ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl bg-[var(--studio-surface-subtle)] p-4 text-sm text-[var(--studio-muted)]">
+                {copy.submitReviewHelp}
+              </div>
+              {currentAssessmentVersion ? (
+                <p className="text-sm font-medium text-[var(--studio-foreground)]">
+                  {copy.currentAssessmentVersion} {currentAssessmentVersion}
+                </p>
+              ) : null}
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-[var(--studio-foreground)]">
+                  {copy.recommendation}
+                </span>
+                <Select
+                  value={recommendation}
+                  onChange={(event) =>
+                    setRecommendation(event.target.value as ReviewRecommendation)
+                  }
+                >
+                  {recommendationOptions(locale).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-[var(--studio-foreground)]">{copy.summary}</span>
+                <Textarea
+                  value={summary}
+                  placeholder={copy.recommendationPlaceholder}
+                  onChange={(event) => setSummary(event.target.value)}
+                />
+              </label>
+              <label className="space-y-2 text-sm">
+                <span className="font-medium text-[var(--studio-foreground)]">{copy.risks}</span>
+                <Textarea
+                  value={risksText}
+                  placeholder={copy.risksPlaceholder}
+                  onChange={(event) => setRisksText(event.target.value)}
+                />
+              </label>
+              <Button
+                onClick={() => void handleCreateReview()}
+                disabled={submitting || !summary.trim()}
+              >
+                {copy.submitReview}
+              </Button>
+              {state.review_history.length > 0 ? (
+                <ReviewHistorySection locale={locale} reviews={state.review_history} />
+              ) : null}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <EmptyState
+                title={copy.noReviewTitle}
+                description={
+                  useCase.status === "Submitted"
+                    ? copy.noReviewDescription
+                    : `${copy.noReviewDescription} ${formatUseCaseStatusLabel(locale, useCase.status)}.`
+                }
+              />
+              {state.review_history.length ? (
+                <ReviewHistorySection locale={locale} reviews={state.review_history} />
+              ) : null}
+            </div>
+          )
+        ) : (
         <div className="space-y-6">
           <section className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
             <div className="space-y-4">
@@ -523,6 +551,7 @@ export function UseCaseReviewPanel({
                   value={displayName(
                     state.review.submitted_by.display_name,
                     state.review.submitted_by.subject_id,
+                    locale,
                   )}
                 />
                 <TimelineRow
@@ -536,6 +565,7 @@ export function UseCaseReviewPanel({
                       ? displayName(
                           state.review.decided_by.display_name,
                           state.review.decided_by.subject_id,
+                          locale,
                         )
                       : copy.noData
                   }
@@ -580,7 +610,7 @@ export function UseCaseReviewPanel({
                     <span>
                       {copy.replyTo}{" "}
                       <strong>
-                        {displayName(replyTo.author.display_name, replyTo.author.subject_id)}
+                        {displayName(replyTo.author.display_name, replyTo.author.subject_id, locale)}
                       </strong>
                     </span>
                     <Button variant="ghost" onClick={() => setReplyTo(null)}>
@@ -668,6 +698,7 @@ export function UseCaseReviewPanel({
           ) : null}
         </div>
       )}
+      </div>
     </Card>
   );
 }
@@ -742,7 +773,7 @@ function ReviewHistorySection({
             <dl className="grid gap-3 text-sm md:grid-cols-2">
               <TimelineRow
                 label={copy.submittedBy}
-                value={displayName(review.submitted_by.display_name, review.submitted_by.subject_id)}
+                value={displayName(review.submitted_by.display_name, review.submitted_by.subject_id, locale)}
               />
               <TimelineRow
                 label={copy.submittedAt}
@@ -752,7 +783,7 @@ function ReviewHistorySection({
                 label={copy.decidedBy}
                 value={
                   review.decided_by
-                    ? displayName(review.decided_by.display_name, review.decided_by.subject_id)
+                    ? displayName(review.decided_by.display_name, review.decided_by.subject_id, locale)
                     : copy.noData
                 }
               />
@@ -790,7 +821,7 @@ function CommentBranch({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-[var(--studio-foreground)]">
-                  {displayName(comment.author.display_name, comment.author.subject_id)}
+                  {displayName(comment.author.display_name, comment.author.subject_id, locale)}
                 </p>
                 <p className="text-xs text-[var(--studio-muted)]">
                   {formatDateTime(comment.created_at, locale)}

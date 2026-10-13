@@ -30,8 +30,8 @@ export function Banner({ language }: { language: StudioLocale }) {
       ? formatWorkspaceRoleLabel(language, auth.roleLabel as DevIdentity["role"])
       : auth.roleLabel;
   return (
-    <div className="bg-[var(--studio-banner)] px-4 text-white shadow-[var(--shadow-sm)]">
-      <div className="mx-auto flex min-h-8 max-w-7xl items-center justify-center text-center text-xs font-semibold tracking-[0.04em]">
+    <div className="bg-[var(--studio-danger)] px-4 py-1.5 text-white shadow-[var(--shadow-sm)]">
+      <div className="mx-auto flex min-h-[32px] max-w-7xl items-center justify-center text-center text-xs font-semibold tracking-[0.04em]">
         <span>{copy.authBanner}</span>
         {displayName || roleLabel ? (
           <span className="truncate">

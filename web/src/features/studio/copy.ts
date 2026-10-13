@@ -148,6 +148,7 @@ type StudioCopy = {
   };
   loading: {
     ariaLabel: string;
+    retry: string;
   };
   toasts: {
     loadErrorTitle: string;
@@ -328,6 +329,7 @@ const studioCopy: Record<StudioLocale, StudioCopy> = {
     },
     loading: {
       ariaLabel: "Chargement du studio",
+      retry: "Réessayer",
     },
     toasts: {
       loadErrorTitle: "Chargement impossible",
@@ -505,6 +507,7 @@ const studioCopy: Record<StudioLocale, StudioCopy> = {
     },
     loading: {
       ariaLabel: "Loading studio",
+      retry: "Retry",
     },
     toasts: {
       loadErrorTitle: "Unable to load",

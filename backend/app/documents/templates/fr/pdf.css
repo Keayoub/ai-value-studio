@@ -374,13 +374,26 @@ small,
 }
 
 .page + .page {
-  margin-top: 0.8rem;
+  margin-top: 0.55rem;
 }
 
 .page__intro {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.55rem;
   color: var(--meta-ink);
   font-size: 10.2pt;
+}
+
+.lead-signal-group {
+  break-inside: avoid;
+  margin-bottom: 0.5rem;
+}
+
+.section-subheading {
+  margin-bottom: 0.28rem;
+}
+
+.section-subheading + .page__intro {
+  margin-top: 0;
 }
 
 .section-grid {
@@ -429,7 +442,7 @@ small,
 .evidence-block,
 .timeline-card,
 .key-points {
-  padding: 0.78rem 0.9rem;
+  padding: 0.72rem 0.84rem;
 }
 
 .hero-card {
@@ -450,7 +463,7 @@ small,
   display: table;
   width: 100%;
   table-layout: fixed;
-  margin-top: 0.65rem;
+  margin-top: 0.55rem;
 }
 
 .kpi-strip__item {
@@ -461,6 +474,31 @@ small,
 
 .kpi-strip__item:last-child {
   padding-right: 0;
+}
+
+.metric-grid {
+  display: block;
+  margin-top: 0.55rem;
+}
+
+.metric-grid::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+.metric-grid__item {
+  float: left;
+  width: 48.8%;
+  margin-top: 0.5rem;
+}
+
+.metric-grid__item:nth-child(odd) {
+  margin-right: 2.4%;
+}
+
+.metric-grid__item:nth-child(-n + 2) {
+  margin-top: 0;
 }
 
 .metric-card__label,
@@ -583,7 +621,7 @@ th {
 }
 
 .quote {
-  margin: 0.65rem 0;
+  margin: 0.55rem 0;
   padding: 0.65rem 0.85rem;
   border-left: 1.1mm solid var(--brand);
   background: var(--page);
@@ -592,7 +630,7 @@ th {
 }
 
 .callout {
-  margin: 0.65rem 0;
+  margin: 0.55rem 0;
   padding: 0.65rem 0.8rem;
   border: 0.3mm solid var(--border-strong);
   border-radius: 3mm;
@@ -616,14 +654,14 @@ h4 + * {
 }
 
 .signal-block {
-  padding: 0.85rem 0.95rem;
+  padding: 0.76rem 0.84rem;
   border: 0.35mm solid var(--border);
   border-radius: 4mm;
   background: #fff;
 }
 
 .signal-block + .signal-block {
-  margin-top: 0.6rem;
+  margin-top: 0.5rem;
 }
 
 .signal-block--facts {
@@ -643,7 +681,7 @@ h4 + * {
 
 .signal-block h3 {
   margin-top: 0.12rem;
-  margin-bottom: 0.45rem;
+  margin-bottom: 0.36rem;
 }
 
 .signal-list {
@@ -652,9 +690,17 @@ h4 + * {
 }
 
 .signal-list__item + .signal-list__item {
-  margin-top: 0.45rem;
+  margin-top: 0.34rem;
 }
 
 .signal-list__summary {
   margin-top: 0.08rem;
+}
+
+.traceability-lead {
+  margin-bottom: 0.55rem;
+}
+
+.traceability-lead .source-table {
+  margin-bottom: 0;
 }

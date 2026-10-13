@@ -165,6 +165,8 @@ export function StudioApp({ route }: { route: StudioRoute }) {
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [useCases, setUseCases] = useState<UseCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailure, setLoadFailure] = useState<string | null>(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [primaryNavOpen, setPrimaryNavOpen] = useState(false);
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
   const primaryNavTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -196,6 +198,18 @@ export function StudioApp({ route }: { route: StudioRoute }) {
     (value: string | null | undefined) =>
       runtimeConfig.authMode === "dev" ? localizeSeededDevFixtureName(language, value) : value,
     [language],
+  );
+  const presentMemberName = useCallback(
+    (member: Pick<WorkspaceMember, "identity" | "membership_id">) =>
+      presentDevFixtureName(member.identity.display_name) ??
+      member.identity.email ??
+      member.membership_id,
+    [presentDevFixtureName],
+  );
+  const presentMembershipLabel = useCallback(
+    (membershipId: string | null | undefined) =>
+      presentDevFixtureName(resolveMembershipLabel(members, membershipId)) ?? t.common.none,
+    [members, presentDevFixtureName, t.common.none],
   );
   const activeRoleLabel =
     auth.roleLabel &&
@@ -231,9 +245,11 @@ export function StudioApp({ route }: { route: StudioRoute }) {
     async function load() {
       if (!auth.ready || auth.status !== "authenticated" || !auth.me) {
         setLoading(false);
+        setLoadFailure(null);
         return;
       }
       setLoading(true);
+      setLoadFailure(null);
       try {
         const workspaceResult = await api.listWorkspaces();
         if (!active) {
@@ -274,6 +290,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
           setUseCases([]);
         }
       } catch (error) {
+        setLoadFailure(error instanceof Error ? error.message : t.toasts.loadErrorDetail);
         toast.push({
           tone: "error",
           title: t.toasts.loadErrorTitle,
@@ -290,7 +307,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
     return () => {
       active = false;
     };
-  }, [api, auth.me, auth.ready, auth.status, programId, t, toast, workspaceId]);
+  }, [api, auth.me, auth.ready, auth.status, programId, reloadVersion, t, toast, workspaceId]);
 
   useEffect(() => {
     const desktopBreakpoint = window.matchMedia("(min-width: 1024px)");
@@ -446,6 +463,17 @@ export function StudioApp({ route }: { route: StudioRoute }) {
       );
     }
 
+    if (loadFailure) {
+      return (
+        <EmptyState
+          title={t.toasts.loadErrorTitle}
+          description={loadFailure}
+          actionLabel={t.loading.retry}
+          onAction={() => setReloadVersion((current) => current + 1)}
+        />
+      );
+    }
+
     if (route === "home") {
       return (
         <div className="grid gap-6 xl:grid-cols-[1.4fr,0.9fr]">
@@ -562,7 +590,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                   <Badge key={`${program.id}-status`}>
                     {formatProgramStatusLabel(language, program.status)}
                   </Badge>,
-                  resolveMembershipLabel(members, program.sponsor_membership_id),
+                  presentMembershipLabel(program.sponsor_membership_id),
                   <Link
                     key={`${program.id}-link`}
                     className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-[var(--studio-border)] px-3 py-2 text-sm font-medium text-[var(--studio-accent)] transition hover:border-[var(--studio-accent)] hover:text-[var(--studio-accent-hover)]"
@@ -615,7 +643,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
               caption={t.members.caption}
               headers={t.members.headers}
               rows={members.map((member) => [
-                member.identity.display_name ?? member.identity.email ?? t.common.none,
+                presentMemberName(member),
                 <Badge key={`${member.membership_id}-role`}>
                   {formatWorkspaceRoleLabel(language, member.role)}
                 </Badge>,
@@ -679,11 +707,11 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                 />
                 <InfoRow
                   label={t.common.sponsor}
-                  value={resolveMembershipLabel(members, selectedProgram.sponsor_membership_id)}
+                  value={presentMembershipLabel(selectedProgram.sponsor_membership_id)}
                 />
                 <InfoRow
                   label={t.common.consultant}
-                  value={resolveMembershipLabel(members, selectedProgram.consultant_membership_id)}
+                  value={presentMembershipLabel(selectedProgram.consultant_membership_id)}
                 />
                 <InfoRow
                   label={t.common.department}
@@ -700,7 +728,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                       <option value="">{t.common.noSponsor}</option>
                       {members.map((member) => (
                         <option key={member.membership_id} value={member.membership_id}>
-                          {member.identity.display_name ?? member.identity.email ?? member.membership_id}
+                          {presentMemberName(member)}
                         </option>
                       ))}
                     </Select>
@@ -744,7 +772,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                   <Badge key={`${item.id}-status`}>
                     {formatUseCaseStatusLabel(language, item.status)}
                   </Badge>,
-                  resolveMembershipLabel(members, item.owner_membership_id),
+                  presentMembershipLabel(item.owner_membership_id),
                   <Link
                     key={`${item.id}-link`}
                     className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-[var(--studio-border)] px-3 py-2 text-sm font-medium text-[var(--studio-accent)] transition hover:border-[var(--studio-accent)] hover:text-[var(--studio-accent-hover)]"
@@ -788,7 +816,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                     <option value="">{t.common.choose}</option>
                     {members.map((member) => (
                       <option key={member.membership_id} value={member.membership_id}>
-                        {member.identity.display_name ?? member.membership_id}
+                        {presentMemberName(member)}
                       </option>
                     ))}
                   </Select>
@@ -826,7 +854,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
             <InfoRow label={t.common.department} value={selectedUseCase.department ?? t.common.none} />
             <InfoRow
               label={t.common.owner}
-              value={resolveMembershipLabel(members, selectedUseCase.owner_membership_id)}
+              value={presentMembershipLabel(selectedUseCase.owner_membership_id)}
             />
             <InfoRow label={t.common.category} value={selectedUseCase.category ?? t.common.none} />
             <InfoRow
@@ -849,7 +877,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                   <option value="">{t.common.noOwner}</option>
                   {members.map((member) => (
                     <option key={member.membership_id} value={member.membership_id}>
-                      {member.identity.display_name ?? member.membership_id}
+                      {presentMemberName(member)}
                     </option>
                   ))}
                 </Select>
@@ -1104,7 +1132,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
 
         <DesktopConnectivityBanner language={language} />
 
-        {loading ? <StudioLoadingState /> : content}
+        {loading ? <StudioLoadingState language={language} /> : content}
       </div>
 
       <Dialog
@@ -1241,10 +1269,14 @@ function NavLink({
   );
 }
 
-function StudioLoadingState() {
+function StudioLoadingState({ language = "fr" }: { language?: StudioLanguage }) {
+  const loadingCopy = studioCopyFor(language).loading;
   return (
     <div
-      aria-label={studioCopyFor("fr").loading.ariaLabel}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label={loadingCopy.ariaLabel}
       className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]"
     >
       <Card>
@@ -1294,6 +1326,12 @@ function ProgramForm({
   onSubmit: () => void;
 }) {
   const t = studioCopyFor(language);
+  const presentMemberName = (member: WorkspaceMember) =>
+    (runtimeConfig.authMode === "dev"
+      ? localizeSeededDevFixtureName(language, member.identity.display_name)
+      : member.identity.display_name) ??
+    member.identity.email ??
+    member.membership_id;
   return (
     <div className="space-y-4">
       <LabeledField label={t.forms.programName}>
@@ -1321,7 +1359,7 @@ function ProgramForm({
             <option value="">{t.common.noSponsor}</option>
             {members.map((member) => (
               <option key={member.membership_id} value={member.membership_id}>
-                {member.identity.display_name ?? member.membership_id}
+                {presentMemberName(member)}
               </option>
             ))}
           </Select>
@@ -1339,7 +1377,7 @@ function ProgramForm({
             <option value="">{t.common.noConsultant}</option>
             {members.map((member) => (
               <option key={member.membership_id} value={member.membership_id}>
-                {member.identity.display_name ?? member.membership_id}
+                {presentMemberName(member)}
               </option>
             ))}
           </Select>
@@ -1380,6 +1418,12 @@ function UseCaseForm({
   onSubmit: () => void;
 }) {
   const t = studioCopyFor(language);
+  const presentMemberName = (member: WorkspaceMember) =>
+    (runtimeConfig.authMode === "dev"
+      ? localizeSeededDevFixtureName(language, member.identity.display_name)
+      : member.identity.display_name) ??
+    member.identity.email ??
+    member.membership_id;
   return (
     <div className="space-y-4">
       <LabeledField label={t.forms.useCaseTitle}>
@@ -1406,7 +1450,7 @@ function UseCaseForm({
           <option value="">{t.common.noOwner}</option>
           {members.map((member) => (
             <option key={member.membership_id} value={member.membership_id}>
-              {member.identity.display_name ?? member.membership_id}
+              {presentMemberName(member)}
             </option>
           ))}
         </Select>

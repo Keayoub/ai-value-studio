@@ -1,7 +1,11 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { setWorkspaceDefaultLanguage } from "./helpers";
 
 type DevRole = "Consultant" | "WorkspaceAdmin" | "Sponsor" | "Contributor";
+const LOCAL_CONSULTANT_NAME = "Consultant local";
+const LOCAL_SPONSOR_NAME = "Sponsor local";
+const LOCAL_CONTRIBUTOR_NAME = "Contributeur local";
 
 const screenshots = {
   home: "test-results/studio-home.png",
@@ -181,13 +185,20 @@ test("runs the real backend lifecycle and enforces sponsor/contributor visibilit
   });
   await page.goto("/studio");
 
-  const seededWorkspaceRow = page.getByRole("row").filter({ hasText: "Espace de développement local" });
+  const seededWorkspaceRow = page
+    .getByRole("row")
+    .filter({ hasText: /Local Development Workspace|Espace de développement local/ });
   await expect(seededWorkspaceRow).toBeVisible();
   await seededWorkspaceRow.getByRole("link", { name: "Ouvrir" }).click();
   await expect(page).toHaveURL(/\/studio\/workspace\?/);
   const seededWorkspaceUrl = new URL(page.url());
   const seededWorkspaceId = seededWorkspaceUrl.searchParams.get("workspaceId");
   expect(seededWorkspaceId).not.toBeNull();
+  await setWorkspaceDefaultLanguage(request, {
+    workspaceId: seededWorkspaceId ?? "",
+    defaultLanguage: "fr-CA",
+  });
+  await page.goto(`/studio/workspace?workspaceId=${seededWorkspaceId}`);
 
   const sponsorProgramName = "Programme sponsor visible";
   const hiddenProgramName = "Programme masqué sponsor";
@@ -196,8 +207,8 @@ test("runs the real backend lifecycle and enforces sponsor/contributor visibilit
 
   await page.getByLabel(labels.programName).fill(sponsorProgramName);
   await page.getByLabel(labels.strategicObjective).fill("Programme visible pour le sponsor assigné.");
-  await page.getByRole("combobox", { name: /^Sponsor$/ }).selectOption({ label: "Local Sponsor" });
-  await page.getByRole("combobox", { name: /^Consultant$/ }).selectOption({ label: "Local Consultant" });
+  await page.getByRole("combobox", { name: /^Sponsor$/ }).selectOption({ label: LOCAL_SPONSOR_NAME });
+  await page.getByRole("combobox", { name: /^Consultant$/ }).selectOption({ label: LOCAL_CONSULTANT_NAME });
   await page.getByRole("button", { name: labels.createProgram }).click();
 
   await expect(page).toHaveURL(/\/studio\/program\?/);
@@ -205,11 +216,11 @@ test("runs the real backend lifecycle and enforces sponsor/contributor visibilit
   const sponsorProgramId = sponsorProgramUrl.searchParams.get("programId");
   expect(sponsorProgramId).not.toBeNull();
 
-  await page.getByLabel(labels.contributorToAssign).selectOption({ label: "Local Contributor" });
+  await page.getByLabel(labels.contributorToAssign).selectOption({ label: LOCAL_CONTRIBUTOR_NAME });
 
   await page.getByLabel(labels.useCaseTitle).fill(visibleUseCaseTitle);
   await page.getByLabel(labels.department).fill("Opérations");
-  await page.getByRole("combobox", { name: labels.owner }).selectOption({ label: "Local Contributor" });
+  await page.getByRole("combobox", { name: labels.owner }).selectOption({ label: LOCAL_CONTRIBUTOR_NAME });
   await page.getByLabel(labels.recommendation).fill("Confier ce cas d’usage au contributor assigné.");
   await page.getByRole("button", { name: labels.createUseCase }).click();
 
@@ -244,8 +255,8 @@ test("runs the real backend lifecycle and enforces sponsor/contributor visibilit
   expect(hiddenProgramId).not.toBeNull();
 
   await page.goto(`/studio/admin/members?workspaceId=${seededWorkspaceId}`);
-  await expect(page.getByText("Local Sponsor")).toBeVisible();
-  await expect(page.getByText("Local Contributor")).toBeVisible();
+  await expect(page.getByText(LOCAL_SPONSOR_NAME)).toBeVisible();
+  await expect(page.getByText(LOCAL_CONTRIBUTOR_NAME)).toBeVisible();
   await expectNoBlockingAxeViolations(page);
   await capture(page, screenshots.members);
 

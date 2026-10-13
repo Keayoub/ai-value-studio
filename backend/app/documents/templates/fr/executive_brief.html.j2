@@ -175,8 +175,16 @@
         "signal-block--facts",
         "Faits",
         "Faits établis",
-        facts,
+        facts[:2],
       ) }}
+      {% if facts|length > 2 %}
+        {{ render_signal_block(
+          "signal-block--facts",
+          "Faits",
+          "Faits établis (suite)",
+          facts[2:],
+        ) }}
+      {% endif %}
 
       <h3>Blocs de preuve</h3>
       <div class="section-grid">
@@ -223,20 +231,44 @@
       <h2>3. Hypothèses à valider et recommandations</h2>
       <p class="page__intro">
         Les hypothèses n’ont pas valeur d’engagement automatique. Elles matérialisent les zones d’incertitude
-        qui devront être confirmées pendant le pilote ou la due diligence documentaire.
+        qui devront être confirmées pendant le pilote ou la due diligence documentaire avant toute extension.
       </p>
       {{ render_signal_block(
         "signal-block--hypotheses",
         "Hypothèses à valider",
         "Hypothèses à valider",
-        hypotheses,
+        hypotheses[:1],
       ) }}
-      {{ render_signal_block(
-        "signal-block--recommendations",
-        "Recommandations",
-        "Recommandations",
-        recommendations,
-      ) }}
+      {% if hypotheses|length > 1 %}
+        {{ render_signal_block(
+          "signal-block--hypotheses",
+          "Hypothèses à valider",
+          "Hypothèses à valider (suite)",
+          hypotheses[1:],
+        ) }}
+      {% endif %}
+
+      <div class="lead-signal-group">
+        <h3 class="section-subheading">Recommandations</h3>
+        <p class="page__intro">
+          Les recommandations ci-dessous traduisent la lecture actuelle du dossier en décisions proposées,
+          sans remplacer la validation humaine finale.
+        </p>
+        {{ render_signal_block(
+          "signal-block--recommendations",
+          "Recommandations",
+          "Recommandations",
+          recommendations[:1],
+        ) }}
+      </div>
+      {% if recommendations|length > 1 %}
+        {{ render_signal_block(
+          "signal-block--recommendations",
+          "Recommandations",
+          "Recommandations (suite)",
+          recommendations[1:],
+        ) }}
+      {% endif %}
     </section>
 
     <section class="page">
@@ -246,29 +278,29 @@
         Ils ne constituent pas une validation d’investissement autonome.
       </p>
 
-      <div class="kpi-strip">
-        <div class="kpi-strip__item">
+      <div class="metric-grid">
+        <div class="metric-grid__item">
           <div class="metric-card">
             <span class="metric-card__label">Valeur brute</span>
             <span class="metric-card__value">{{ gross_value_display }}</span>
             <div class="metric-card__detail">Avant coût annuel de solution.</div>
           </div>
         </div>
-        <div class="kpi-strip__item">
+        <div class="metric-grid__item">
           <div class="metric-card">
             <span class="metric-card__label">Gains de temps</span>
             <span class="metric-card__value">{{ time_value_display }}</span>
             <div class="metric-card__detail">Hypothèse basée sur le volume annuel et le temps économisé.</div>
           </div>
         </div>
-        <div class="kpi-strip__item">
+        <div class="metric-grid__item">
           <div class="metric-card">
             <span class="metric-card__label">Évitement d’erreurs</span>
             <span class="metric-card__value">{{ error_value_display }}</span>
             <div class="metric-card__detail">Lecture monétaire de la baisse d’erreurs déclarée.</div>
           </div>
         </div>
-        <div class="kpi-strip__item">
+        <div class="metric-grid__item">
           <div class="metric-card">
             <span class="metric-card__label">Readiness moyenne</span>
             <span class="metric-card__value">{{ readiness_average_display }}</span>
@@ -306,32 +338,57 @@
       </div>
     </section>
 
-    <section class="page page-break">
-      <h2>5. Annexes de traçabilité</h2>
-      <p class="page__intro">
-        Le registre suivant identifie les champs-clés mobilisés dans le document et leur provenance déclarée.
-      </p>
+    <section class="page">
+      <div class="traceability-lead keep-together">
+        <h2>5. Annexes de traçabilité</h2>
+        <p class="page__intro">
+          Le registre suivant identifie les champs-clés mobilisés dans le document et leur provenance déclarée.
+        </p>
 
-      <table class="source-table">
-        <thead>
-          <tr>
-            <th>Champ</th>
-            <th>Clé source</th>
-            <th>Valeur de snapshot</th>
-            <th>Origine</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in source_register %}
+        <table class="source-table">
+          <thead>
             <tr>
-              <td>{{ item.label }}</td>
-              <td>{{ item.key }}</td>
-              <td>{{ item.value }}</td>
-              <td>{{ item.source_label }}</td>
+              <th>Champ</th>
+              <th>Clé source</th>
+              <th>Valeur de snapshot</th>
+              <th>Origine</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for item in source_register[:3] %}
+              <tr>
+                <td>{{ item.label }}</td>
+                <td>{{ item.key }}</td>
+                <td>{{ item.value }}</td>
+                <td>{{ item.source_label }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if source_register|length > 3 %}
+        <table class="source-table">
+          <thead>
+            <tr>
+              <th>Champ</th>
+              <th>Clé source</th>
+              <th>Valeur de snapshot</th>
+              <th>Origine</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in source_register[3:] %}
+              <tr>
+                <td>{{ item.label }}</td>
+                <td>{{ item.key }}</td>
+                <td>{{ item.value }}</td>
+                <td>{{ item.source_label }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
     </section>
   </body>
 </html>

@@ -24,6 +24,7 @@ import type {
 } from "@/features/api/types";
 import { useAuth } from "@/features/auth/auth-context";
 import { getDesktopBridge, getPublicRuntimeConfig } from "@/features/auth/runtime";
+import { isPermissionDeniedError } from "@/features/studio/data-surface";
 import { cn } from "@/lib/cn";
 
 const runtimeConfig = getPublicRuntimeConfig(process.env);
@@ -41,6 +42,9 @@ const documentCentreCopy = {
       "Le brouillon Markdown devient disponible après verrouillage de l’évaluation, recalcul du scorecard et soumission de la revue. Le PDF nécessite une revue sponsor approuvée.",
     loadErrorTitle: "Impossible de charger le centre documentaire.",
     retry: "Réessayer",
+    permissionDeniedTitle: "Centre documentaire indisponible",
+    permissionDeniedDescription:
+      "Vous n’avez pas l’autorisation d’afficher les documents générés pour ce cas d’usage.",
     generateMarkdown: "Générer Markdown",
     generatePdf: "Générer PDF",
     download: "Télécharger",
@@ -122,6 +126,9 @@ const documentCentreCopy = {
       "Markdown drafts become available after the assessment is locked, the scorecard is recalculated, and the review is submitted. PDF generation requires an approved sponsor review.",
     loadErrorTitle: "Could not load the document centre.",
     retry: "Retry",
+    permissionDeniedTitle: "Document centre unavailable",
+    permissionDeniedDescription:
+      "You do not have permission to view generated documents for this use case.",
     generateMarkdown: "Generate Markdown",
     generatePdf: "Generate PDF",
     download: "Download",
@@ -562,8 +569,8 @@ function ActionButton({
 
 function DocumentCentreLoading({ copy }: { copy: (typeof documentCentreCopy)[Locale] }) {
   return (
-    <div className="space-y-4">
-      <p aria-live="polite" className="sr-only">
+    <div role="status" aria-live="polite" aria-busy="true" className="space-y-4">
+      <p className="sr-only">
         {copy.loading}
       </p>
       {[0, 1].map((item) => (
@@ -642,7 +649,7 @@ export function DocumentCentre({
   );
   const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailure, setLoadFailure] = useState<unknown>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const viewerMembershipId =
@@ -655,15 +662,15 @@ export function DocumentCentre({
 
   const loadDocuments = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadFailure(null);
     try {
       setDocuments(await api.listDocuments(workspaceId, programId, useCase.id));
     } catch (nextError) {
-      setError(problemMessage(nextError, copy.loadErrorTitle));
+      setLoadFailure(nextError);
     } finally {
       setLoading(false);
     }
-  }, [api, copy.loadErrorTitle, programId, useCase.id, workspaceId]);
+  }, [api, programId, useCase.id, workspaceId]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -770,19 +777,27 @@ export function DocumentCentre({
   return (
     <Card>
       <CardHeader title={copy.title} description={copy.description} />
-      {loading ? (
-        <DocumentCentreLoading copy={copy} />
-      ) : error ? (
-        <EmptyState
-          title={copy.loadErrorTitle}
-          description={error}
-          actionLabel={copy.retry}
-          onAction={() => void loadDocuments()}
-        />
-      ) : !documents.length ? (
-        <EmptyState title={copy.emptyTitle} description={copy.emptyDescription} />
-      ) : (
-        <div className="space-y-6">
+      <div aria-busy={loading || busyKey !== null} className="space-y-4">
+        {loading ? (
+          <DocumentCentreLoading copy={copy} />
+        ) : loadFailure ? (
+          isPermissionDeniedError(loadFailure) ? (
+            <EmptyState
+              title={copy.permissionDeniedTitle}
+              description={copy.permissionDeniedDescription}
+            />
+          ) : (
+            <EmptyState
+              title={copy.loadErrorTitle}
+              description={problemMessage(loadFailure, copy.loadErrorTitle)}
+              actionLabel={copy.retry}
+              onAction={() => void loadDocuments()}
+            />
+          )
+        ) : !documents.length ? (
+          <EmptyState title={copy.emptyTitle} description={copy.emptyDescription} />
+        ) : (
+          <div className="space-y-6">
           {documents.map((document) => {
             const typeLabel = labelForType(document.type, locale);
             const currentVersion = document.current_version;
@@ -1079,8 +1094,9 @@ export function DocumentCentre({
               </section>
             );
           })}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </Card>
   );
 }

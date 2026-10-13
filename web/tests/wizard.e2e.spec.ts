@@ -22,6 +22,7 @@ import {
   fillStepTwo,
   openUseCase,
   proxyApiRequests,
+  setWorkspaceDefaultLanguage,
   selectDevIdentity,
   type BootstrapResult,
 } from "./helpers";
@@ -115,6 +116,7 @@ const REQUEST_INFORMATION_LIMITATION_TEXT =
 const AI_ASSISTED_TEXT = /^(Assisté par IA|AI-assisted)$/;
 const LOCAL_CONSULTANT_NAME = "Consultant local";
 const LOCAL_SPONSOR_NAME = "Sponsor local";
+const LOCAL_CONTRIBUTOR_NAME = "Contributeur local";
 
 function formatApiFailureBody(bodyText: string) {
   if (!bodyText) {
@@ -434,6 +436,10 @@ test("completes the persisted eight-step wizard, reloads cleanly, and submits", 
     programName: `Programme wizard ${Date.now()}`,
     useCaseTitle: `Cas wizard ${Date.now()}`,
   });
+  await setWorkspaceDefaultLanguage(request, {
+    workspaceId: bootstrap.workspaceId,
+    defaultLanguage: "fr-CA",
+  });
   await proxyApiRequests(page, request);
   await selectDevIdentity(page, request, {
     subjectId: "consultant",
@@ -489,7 +495,7 @@ test("completes the persisted eight-step wizard, reloads cleanly, and submits", 
     page.getByText(REQUEST_INFORMATION_LIMITATION_TEXT),
   ).toBeVisible();
   await expect(
-    page.getByRole("definition").filter({ hasText: "Local Sponsor" }),
+    page.getByRole("definition").filter({ hasText: LOCAL_SPONSOR_NAME }),
   ).toBeVisible();
   await page
     .getByLabel(
@@ -788,9 +794,11 @@ test("routes sponsor approval through the review panel and inbox", async ({
   page,
   request,
 }) => {
+  const programName = `Programme review ${Date.now()}`;
+  const useCaseTitle = `Cas review ${Date.now()}`;
   const bootstrap = await bootstrapUseCase(request, {
-    programName: `Programme review ${Date.now()}`,
-    useCaseTitle: `Cas review ${Date.now()}`,
+    programName,
+    useCaseTitle,
   });
   await proxyApiRequests(page, request);
   const consultant = await fetchDevIdentityHeaders(request, {
@@ -888,8 +896,15 @@ test("routes sponsor approval through the review panel and inbox", async ({
     page.getByRole("heading", { name: REVIEW_INBOX_TITLE }),
   ).toBeVisible();
   await expect(page.getByText(bootstrap.useCaseId)).toHaveCount(0);
-  await expect(page.getByText(/Cas review/)).toBeVisible();
-  await page.getByRole("link", { name: OPEN_REVIEW_LINK }).click();
+  const reviewHref = `/studio/use-case?workspaceId=${bootstrap.workspaceId}&programId=${bootstrap.programId}&useCaseId=${bootstrap.useCaseId}`;
+  const reviewInboxItem = page.locator("article", {
+    has: page.locator(`a[href="${reviewHref}"]`),
+  });
+  await expect(
+    reviewInboxItem.getByRole("heading", { name: useCaseTitle, exact: true }),
+  ).toBeVisible();
+  await expect(reviewInboxItem.getByText(programName, { exact: true })).toBeVisible();
+  await reviewInboxItem.getByRole("link", { name: OPEN_REVIEW_LINK }).click();
 
   await expect(
     page.getByRole("heading", { name: REVIEW_PANEL_TITLE }),
@@ -1323,6 +1338,10 @@ test("enforces contributor restrictions and supports interview attribution flow"
     programName: `Programme contrib ${Date.now()}`,
     useCaseTitle: `Cas contrib ${Date.now()}`,
   });
+  await setWorkspaceDefaultLanguage(request, {
+    workspaceId: bootstrap.workspaceId,
+    defaultLanguage: "fr-CA",
+  });
   await proxyApiRequests(page, request);
   await selectDevIdentity(page, request, {
     subjectId: "workspace-admin",
@@ -1336,7 +1355,7 @@ test("enforces contributor restrictions and supports interview attribution flow"
   await expect(page.getByLabel(RESPONDENT_LABEL)).toBeEnabled();
   await page
     .getByLabel(RESPONDENT_LABEL)
-    .selectOption({ label: "Local Contributor" });
+    .selectOption({ label: LOCAL_CONTRIBUTOR_NAME });
   await expect(page.getByText(INTERVIEW_ACTIVE_TEXT)).toBeVisible();
   await page
     .getByLabel("Processus cible")

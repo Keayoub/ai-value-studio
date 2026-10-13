@@ -10,6 +10,9 @@ export type DevIdentity = {
 const localizedSeededFixtureNames: Partial<Record<StudioLocale, Record<string, string>>> = {
   fr: {
     "Local Consultant": "Consultant local",
+    "Local Workspace Admin": "Administrateur local",
+    "Local Sponsor": "Sponsor local",
+    "Local Contributor": "Contributeur local",
     "Local Development Workspace": "Espace de développement local",
     "Local Demo Workspace": "Espace de démonstration local",
     "Seeded local development workspace.": "Espace de développement local préconfiguré.",

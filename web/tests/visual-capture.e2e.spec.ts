@@ -36,6 +36,7 @@ const EXECUTIVE_BRIEF = /Note exécutive/;
 const INSPECT_BVA_DATA = /Voir les données BVA|Inspect BVA data/;
 const LOCAL_CONSULTANT_NAME = "Consultant local";
 const LOCAL_SPONSOR_NAME = "Sponsor local";
+const LOCAL_ADMIN_NAME = "Administrateur local";
 const SEEDED_WORKSPACE_NAME_TRANSLATIONS: Record<string, string> = {
   "Local Development Workspace": "Espace de développement local",
   "Local Demo Workspace": "Espace de démonstration local",
@@ -151,6 +152,11 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.innerWidth + 1);
 }
 
+async function expect400PercentZoomReflow(page: Page) {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await expectNoHorizontalOverflow(page);
+}
+
 async function expectNoQuadrantOverlayCollision(page: Page) {
   const result = await page.evaluate(() => {
     const frame = document.querySelector("[data-portfolio-matrix-frame]");
@@ -256,6 +262,7 @@ async function expectMobilePrimaryNavigationDrawer(page: Page) {
 
   await page.keyboard.press("Enter");
   await expect(drawer).toBeVisible();
+  await expect(closeButton).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(currentRouteLink).toBeFocused();
   await page.keyboard.press("Enter");
@@ -294,7 +301,7 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
   });
   const workspaceAdmin = await fetchDevIdentityHeaders(request, {
     subjectId: "workspace-admin",
-    displayName: "Administrateur local",
+    displayName: LOCAL_ADMIN_NAME,
     role: "WorkspaceAdmin",
   });
   const workspacesResponse = await request.get("http://127.0.0.1:8010/api/v1/workspaces", {
@@ -335,6 +342,9 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
     await expect(page.getByText("Local Consultant", { exact: true })).toHaveCount(0);
     await expect(page.getByText(seededWorkspaceName, { exact: true })).toHaveCount(0);
   });
+  await page.goto("/studio");
+  await expect(page.getByRole("heading", { name: /Piloter les espaces/i })).toBeVisible();
+  await expect400PercentZoomReflow(page);
 
   await page.goto(`/studio/workspace?workspaceId=${main.bootstrap.workspaceId}`);
   await capture(page, "02", "workspace-home", async () => {
@@ -370,7 +380,7 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
   await fillStepSeven(page);
   await capture(page, "05", "wizard-review", async () => {
     await expect(page.getByRole("heading", { name: REVIEW_HEADING })).toBeVisible();
-    await expect(page.getByText("Local Sponsor")).toBeVisible();
+    await expect(page.getByText(LOCAL_SPONSOR_NAME)).toBeVisible();
     await expect(page.getByRole("heading", { name: /Informations manquantes|Missing information/ }).first()).toBeVisible();
   });
 
@@ -446,6 +456,9 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
     await expect(page.locator("g[role='button'][aria-pressed='true']")).toHaveCount(1);
     await expectNoQuadrantOverlayCollision(page);
   });
+  await page.goto(`/studio/portfolio?workspaceId=${main.bootstrap.workspaceId}`);
+  await expect(page.getByRole("heading", { name: PORTFOLIO_TITLE })).toBeVisible();
+  await expect400PercentZoomReflow(page);
 
   await submitReviewAndGenerateBrief(request, main.bootstrap, consultant.headers, {
     recommendation: "Pilot",

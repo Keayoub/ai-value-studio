@@ -141,8 +141,16 @@
         "signal-block--facts",
         "Faits",
         "Faits verrouillés",
-        facts,
+        facts[:2],
       ) }}
+      {% if facts|length > 2 %}
+        {{ render_signal_block(
+          "signal-block--facts",
+          "Faits",
+          "Faits verrouillés (suite)",
+          facts[2:],
+        ) }}
+      {% endif %}
     </section>
 
     <section class="page">
@@ -159,16 +167,26 @@
     </section>
 
     <section class="page">
-      <h2>4. Cadre opératoire recommandé</h2>
-      <p class="page__intro">
-        Cette section transforme la recommandation de revue en consignes opérationnelles pour un pilote limité.
-      </p>
-      {{ render_signal_block(
-        "signal-block--recommendations",
-        "Recommandations",
-        "Recommandations",
-        recommendations,
-      ) }}
+      <div class="lead-signal-group">
+        <h2>4. Cadre opératoire recommandé</h2>
+        <p class="page__intro">
+          Cette section transforme la recommandation de revue en consignes opérationnelles pour un pilote limité.
+        </p>
+        {{ render_signal_block(
+          "signal-block--recommendations",
+          "Recommandations",
+          "Recommandations",
+          recommendations[:1],
+        ) }}
+      </div>
+      {% if recommendations|length > 1 %}
+        {{ render_signal_block(
+          "signal-block--recommendations",
+          "Recommandations",
+          "Recommandations (suite)",
+          recommendations[1:],
+        ) }}
+      {% endif %}
 
       <div class="callout">
         <strong>Comportement interdit&nbsp;:</strong> aucune décision finale sans validation humaine, et aucun élargissement
@@ -182,29 +200,29 @@
         Les objectifs sont formulés comme des cibles à vérifier et non comme des résultats acquis.
       </p>
 
-      <div class="kpi-strip">
-        <div class="kpi-strip__item">
+      <div class="metric-grid">
+        <div class="metric-grid__item">
           <div class="metric-card">
             <span class="metric-card__label">KPI de référence</span>
             <span class="metric-card__value">{{ kpi_baseline }}</span>
             <div class="metric-card__detail">Valeur cible&nbsp;: {{ kpi_target }}</div>
           </div>
         </div>
-        <div class="kpi-strip__item">
+        <div class="metric-grid__item">
           <div class="metric-card">
             <span class="metric-card__label">Score de priorité</span>
             <span class="metric-card__value">{{ priority_score_display }}</span>
             <div class="metric-card__detail">Catégorie&nbsp;: {{ category }}</div>
           </div>
         </div>
-        <div class="kpi-strip__item">
+        <div class="metric-grid__item">
           <div class="metric-card">
             <span class="metric-card__label">Valeur nette</span>
             <span class="metric-card__value">{{ net_annual_value_display }}</span>
             <div class="metric-card__detail">Lecture financière indicative, à confirmer.</div>
           </div>
         </div>
-        <div class="kpi-strip__item">
+        <div class="metric-grid__item">
           <div class="metric-card">
             <span class="metric-card__label">Risque</span>
             <span class="metric-card__value">{{ risk_profile }}</span>

@@ -8,6 +8,8 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getPublicRuntimeConfig } from "@/features/auth/runtime";
+import { localizeSeededDevFixtureName } from "@/features/studio/copy.dev";
 import type {
   AssessmentEnvelope,
   DerivedAssessmentState,
@@ -22,6 +24,12 @@ import {
   splitListEntries,
   summarizeValue,
 } from "@/features/studio/wizard/utils";
+
+const runtimeConfig = getPublicRuntimeConfig(process.env);
+
+function presentSeededFixtureValue(locale: Locale, value: string | null | undefined) {
+  return runtimeConfig.authMode === "dev" ? localizeSeededDevFixtureName(locale, value) : value;
+}
 
 export function StepForm({
   step,
@@ -134,7 +142,7 @@ export function ReviewPanel({
               <dl className="space-y-3 text-sm">
                 <SummaryRow
                   label={labels.sponsor}
-                  value={envelope.derived.sponsor_name ?? labels.noData}
+                  value={presentSeededFixtureValue(locale, envelope.derived.sponsor_name) ?? labels.noData}
                 />
                 <SummaryRow
                   label={labels.riskProfile}
@@ -197,7 +205,10 @@ export function DerivedPanel({
     <Card className="shadow-[var(--shadow-sm)]">
       <CardHeader title={labels.recommendationSummary} />
       <dl className="space-y-3 text-sm">
-        <SummaryRow label={labels.sponsor} value={derived.sponsor_name ?? labels.noData} />
+        <SummaryRow
+          label={labels.sponsor}
+          value={presentSeededFixtureValue(locale, derived.sponsor_name) ?? labels.noData}
+        />
         <SummaryRow label={labels.riskProfile} value={derived.risk_profile ?? labels.noData} />
         {derived.step4_preview ? (
           <>
