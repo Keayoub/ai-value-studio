@@ -1,0 +1,22 @@
+{
+  "name": "electron-app",
+  "productName": "AI Value Studio Desktop",
+  "version": "1.0.0",
+  "description": "Electron shell for the exported AI Value Studio wizard",
+  "main": "src/index.js",
+  "scripts": {
+    "prepare-renderer": "node ./scripts/sync-renderer.js",
+    "start": "npm run prepare-renderer && electron .",
+    "package": "npm run prepare-renderer",
+    "lint": "node --check src/index.js"
+  },
+  "keywords": [],
+  "author": "kay",
+  "license": "MIT",
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.1"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0"
+  }
+}

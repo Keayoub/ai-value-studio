@@ -1,0 +1,73 @@
+# {% if status == "Draft" %}BROUILLON — {% endif %}{{ document_title }} — {{ use_case_title }}
+
+- Programme : {{ program_name }}
+- Département : {{ department }}
+- Version documentaire : v{{ version_no }}
+- Statut documentaire : {{ document_status_label }}
+- Versions source : évaluation v{{ assessment_version }}, scorecard v{{ scorecard_version }}
+- Généré par : {{ generated_by }}
+- Généré le : {{ generated_at.strftime("%Y-%m-%d %H:%M UTC") }}
+
+## 1. Décision demandée
+
+{{ executive_summary }}
+
+- Pourquoi maintenant : {{ why_now }}
+- Coût de l’inaction : {{ cost_of_inaction }}
+- Opportunité observée : {{ opportunity }}
+
+## 2. Faits établis
+
+{% for item in facts -%}
+### {{ item.title }}
+{% if item.ai_assisted %}{{ item.marker }} — {% endif %}{{ item.body }}
+
+Source :
+{% for meta in item.source_metadata -%}
+- {{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}
+{% endfor %}
+
+{% endfor -%}
+## 3. Hypothèses à valider
+
+{% for item in hypotheses -%}
+### {{ item.title }}
+{% if item.ai_assisted %}{{ item.marker }} — {% endif %}{{ item.body }}
+
+Source :
+{% for meta in item.source_metadata -%}
+- {{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}
+{% endfor %}
+
+{% endfor -%}
+## 4. Recommandations
+
+{% for item in recommendations -%}
+### {{ item.title }}
+{% if item.ai_assisted %}{{ item.marker }} — {% endif %}{{ item.body }}
+
+Source :
+{% for meta in item.source_metadata -%}
+- {{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}
+{% endfor %}
+
+{% endfor -%}
+## 5. Économie et score
+
+- Valeur nette annuelle : {{ net_annual_value_display }}
+- Valeur brute : {{ gross_value_display }}
+- Gains de temps : {{ time_value_display }}
+- Évitement d’erreurs : {{ error_value_display }}
+- Score de priorité : {{ priority_score_display }}
+- Catégorie : {{ category }}
+- Risque déclaré : {{ risk_profile }}
+
+## 6. Registre source
+
+{% for item in source_register -%}
+- {{ item.label }} ({{ item.key }}) : {{ item.value }} — {{ item.source_label }}
+{% endfor %}
+
+---
+
+Le checksum SHA-256 est calculé après rendu et stocké avec la version documentaire, sans être intégré au contenu.

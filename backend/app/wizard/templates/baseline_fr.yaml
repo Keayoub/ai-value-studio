@@ -1,0 +1,159 @@
+{
+  "template_key": "baseline-fr",
+  "version": 1,
+  "locale": "fr",
+  "title": "Questionnaire d'évaluation IA — baseline FR",
+  "description": "Template S4 à huit étapes avec kickstart inerte et règles conditionnelles côté serveur.",
+  "steps": [
+    {
+      "index": 0,
+      "key": "kickstart",
+      "title": "Kickstart",
+      "purpose": "Assistance IA optionnelle non disponible dans cette version.",
+      "available": false,
+      "optional": true,
+      "questions": []
+    },
+    {
+      "index": 1,
+      "key": "context",
+      "title": "Contexte et processus",
+      "purpose": "Décrire le processus actuel, ses acteurs et ses volumes.",
+      "questions": [
+        {"key": "target_process", "field_type": "textarea", "label": "Processus cible", "help_text": "Décrivez le flux métier visé.", "schema": {"type": "string", "min_length": 10, "max_length": 1200}, "required": true, "contributor_editable": true},
+        {"key": "team_name", "field_type": "text", "label": "Équipe concernée", "schema": {"type": "string", "min_length": 2, "max_length": 200}, "required": true, "contributor_editable": true},
+        {"key": "trigger_event", "field_type": "text", "label": "Déclencheur principal", "schema": {"type": "string", "min_length": 3, "max_length": 240}, "required": true, "contributor_editable": true},
+        {"key": "process_steps", "field_type": "list", "label": "Étapes principales du processus", "help_text": "Une étape par ligne si possible.", "schema": {"type": "array", "min_items": 1, "max_items": 20, "items": {"type": "string", "min_length": 3}}, "required": true, "contributor_editable": true},
+        {"key": "systems_involved", "field_type": "list", "label": "Systèmes impliqués", "help_text": "Un système par ligne.", "schema": {"type": "array", "min_items": 1, "max_items": 20, "items": {"type": "string", "min_length": 2}}, "required": true, "contributor_editable": true},
+        {"key": "annual_volume", "field_type": "integer", "label": "Volume annualisé", "schema": {"type": "integer", "minimum": 1, "maximum": 100000000}, "required": true, "contributor_editable": true},
+        {"key": "duration_minutes_per_occurrence", "field_type": "number", "label": "Durée moyenne par occurrence (minutes)", "schema": {"type": "number", "exclusive_minimum": 0, "maximum": 100000}, "required": true, "contributor_editable": true}
+      ]
+    },
+    {
+      "index": 2,
+      "key": "problem",
+      "title": "Problème et friction",
+      "purpose": "Documenter le problème, ses impacts et les preuves disponibles.",
+      "questions": [
+        {"key": "problem_statement", "field_type": "textarea", "label": "Problème observé", "schema": {"type": "string", "min_length": 15, "max_length": 2000}, "required": true, "contributor_editable": true},
+        {"key": "delay_cost_risk_causes", "field_type": "textarea", "label": "Causes de délai, coût ou risque", "schema": {"type": "string", "min_length": 10, "max_length": 2000}, "required": true, "contributor_editable": true},
+        {"key": "error_points", "field_type": "textarea", "label": "Points d'erreur ou de rupture", "schema": {"type": "string", "min_length": 5, "max_length": 1500}, "required": true, "contributor_editable": true},
+        {"key": "missing_knowledge", "field_type": "textarea", "label": "Connaissances manquantes", "schema": {"type": "string", "min_length": 5, "max_length": 1500}, "required": false, "contributor_editable": true},
+        {"key": "impact_type", "field_type": "select", "label": "Impact principal", "options": [{"value": "quantified", "label": "Quantifié"}, {"value": "qualitative", "label": "Qualitatif"}], "schema": {"type": "string", "enum": ["quantified", "qualitative"]}, "required": true, "contributor_editable": true},
+        {"key": "impact_statement", "field_type": "textarea", "label": "Impact documenté", "schema": {"type": "string", "min_length": 8, "max_length": 2000}, "required": true, "contributor_editable": true},
+        {"key": "cost_of_inaction", "field_type": "textarea", "label": "Coût de l'inaction", "schema": {"type": "string", "min_length": 5, "max_length": 1200}, "required": true, "contributor_editable": true},
+        {"key": "reason_now", "field_type": "textarea", "label": "Pourquoi maintenant", "schema": {"type": "string", "min_length": 5, "max_length": 1200}, "required": true, "contributor_editable": true},
+        {"key": "supporting_evidence", "field_type": "textarea", "label": "Éléments de preuve", "schema": {"type": "string", "min_length": 5, "max_length": 2000}, "required": true, "contributor_editable": true}
+      ]
+    },
+    {
+      "index": 3,
+      "key": "solution",
+      "title": "Solution IA visée",
+      "purpose": "Préciser le rôle de l'IA, ses limites et les cas conditionnels.",
+      "questions": [
+        {"key": "ai_task", "field_type": "textarea", "label": "Tâche réalisée par l'IA", "schema": {"type": "string", "min_length": 10, "max_length": 1500}, "required": true, "contributor_editable": true},
+        {"key": "ai_inputs", "field_type": "textarea", "label": "Entrées attendues", "schema": {"type": "string", "min_length": 5, "max_length": 1500}, "required": true, "contributor_editable": true},
+        {"key": "ai_outputs", "field_type": "textarea", "label": "Sorties attendues", "schema": {"type": "string", "min_length": 5, "max_length": 1500}, "required": true, "contributor_editable": true},
+        {"key": "autonomy_level", "field_type": "radio", "label": "Niveau d'autonomie", "options": [{"value": "assist", "label": "Assister"}, {"value": "recommend", "label": "Recommander"}, {"value": "execute_with_approval", "label": "Exécuter avec validation humaine"}], "schema": {"type": "string", "enum": ["assist", "recommend", "execute_with_approval"]}, "required": true, "contributor_editable": true},
+        {"key": "human_validation_policy", "field_type": "radio", "label": "Validation humaine", "options": [{"value": "mandatory", "label": "Obligatoire"}, {"value": "threshold_based", "label": "Selon seuils"}, {"value": "sample_based", "label": "Par échantillonnage"}], "schema": {"type": "string", "enum": ["mandatory", "threshold_based", "sample_based"]}, "required": true, "contributor_editable": true},
+        {"key": "supported_languages", "field_type": "list", "label": "Langues à supporter", "help_text": "Une langue par ligne.", "schema": {"type": "array", "min_items": 1, "max_items": 10, "items": {"type": "string", "min_length": 2}}, "required": true, "contributor_editable": true},
+        {"key": "prohibited_behaviour", "field_type": "textarea", "label": "Comportements interdits", "schema": {"type": "string", "min_length": 5, "max_length": 1200}, "required": true, "contributor_editable": true},
+        {"key": "solution_pattern", "field_type": "select", "label": "Pattern de solution", "options": [{"value": "generic", "label": "Générique"}, {"value": "ai_case_processing", "label": "AI Case Processing"}], "schema": {"type": "string", "enum": ["generic", "ai_case_processing"]}, "required": true, "contributor_editable": true},
+        {"key": "case_processing_dossier_type", "field_type": "text", "label": "Type de dossier", "schema": {"type": "string", "min_length": 3, "max_length": 255}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_volume_basis", "field_type": "integer", "label": "Volume de dossiers concerné", "schema": {"type": "integer", "minimum": 1, "maximum": 100000000}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_documents_per_dossier", "field_type": "integer", "label": "Documents par dossier", "schema": {"type": "integer", "minimum": 1, "maximum": 1000}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_mandatory_documents", "field_type": "list", "label": "Documents obligatoires", "schema": {"type": "array", "min_items": 1, "max_items": 20, "items": {"type": "string", "min_length": 3}}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_extracted_fields", "field_type": "list", "label": "Champs à extraire", "schema": {"type": "array", "min_items": 1, "max_items": 20, "items": {"type": "string", "min_length": 3}}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_inconsistency_checks", "field_type": "list", "label": "Contrôles d'incohérence", "schema": {"type": "array", "min_items": 1, "max_items": 20, "items": {"type": "string", "min_length": 3}}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_next_action", "field_type": "text", "label": "Action suivante attendue", "schema": {"type": "string", "min_length": 3, "max_length": 255}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_sla", "field_type": "text", "label": "SLA ou délai cible", "schema": {"type": "string", "min_length": 3, "max_length": 255}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_human_validation_level", "field_type": "select", "label": "Niveau de validation humaine", "options": [{"value": "mandatory", "label": "Obligatoire"}, {"value": "threshold_based", "label": "Selon seuils"}, {"value": "sample_based", "label": "Échantillonnage"}], "schema": {"type": "string", "enum": ["mandatory", "threshold_based", "sample_based"]}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_cost_of_poor_processing", "field_type": "textarea", "label": "Coût d'un traitement incomplet ou erroné", "schema": {"type": "string", "min_length": 5, "max_length": 1500}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true},
+        {"key": "case_processing_sensitive_flags", "field_type": "multiselect", "label": "Données personnelles, médicales ou financières concernées", "options": [{"value": "personal", "label": "Personnelles"}, {"value": "medical", "label": "Médicales"}, {"value": "financial", "label": "Financières"}], "schema": {"type": "array", "min_items": 1, "max_items": 3, "items": {"type": "string", "enum": ["personal", "medical", "financial"]}}, "required": false, "visible_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "required_if": [{"question_key": "solution_pattern", "operator": "equals", "value": "ai_case_processing"}], "contributor_editable": true}
+      ]
+    },
+    {
+      "index": 4,
+      "key": "business_value",
+      "title": "Valeur métier",
+      "purpose": "Quantifier la valeur potentielle et afficher un aperçu déterministe.",
+      "questions": [
+        {"key": "time_saved_hours", "field_type": "number", "label": "Temps gagné par transaction (heures)", "schema": {"type": "number", "minimum": 0, "maximum": 100000}, "required": true, "contributor_editable": false},
+        {"key": "hourly_cost", "field_type": "money", "label": "Coût horaire moyen", "schema": {"type": "number", "minimum": 0, "maximum": 1000000}, "required": true, "contributor_editable": false},
+        {"key": "error_reduction_rate", "field_type": "number", "label": "Réduction attendue du taux d'erreur (%)", "schema": {"type": "number", "minimum": 0, "maximum": 100}, "required": true, "contributor_editable": false},
+        {"key": "average_error_cost", "field_type": "money", "label": "Coût moyen d'une erreur", "schema": {"type": "number", "minimum": 0, "maximum": 100000000}, "required": true, "contributor_editable": false},
+        {"key": "revenue_capacity_impact", "field_type": "money", "label": "Impact annuel revenu/capacité", "schema": {"type": "number", "minimum": 0, "maximum": 1000000000}, "required": false, "contributor_editable": false},
+        {"key": "estimated_annual_cost", "field_type": "money", "label": "Coût annuel estimé de la solution", "schema": {"type": "number", "minimum": 0, "maximum": 1000000000}, "required": true, "contributor_editable": false},
+        {"key": "time_to_impact_months", "field_type": "integer", "label": "Temps avant impact (mois)", "schema": {"type": "integer", "minimum": 0, "maximum": 120}, "required": false, "contributor_editable": false},
+        {"key": "primary_kpi", "field_type": "text", "label": "KPI principal", "schema": {"type": "string", "min_length": 3, "max_length": 255}, "required": true, "contributor_editable": false},
+        {"key": "kpi_target", "field_type": "text", "label": "Cible du KPI", "schema": {"type": "string", "min_length": 2, "max_length": 255}, "required": true, "contributor_editable": false},
+        {"key": "hypothesis_confidence", "field_type": "select", "label": "Confiance sur l'hypothèse de valeur", "options": [{"value": "low", "label": "Faible"}, {"value": "medium", "label": "Moyenne"}, {"value": "high", "label": "Élevée"}], "schema": {"type": "string", "enum": ["low", "medium", "high"]}, "required": true, "contributor_editable": false},
+        {"key": "value_hypothesis", "field_type": "textarea", "label": "Hypothèse principale de valeur", "schema": {"type": "string", "min_length": 5, "max_length": 1500}, "required": true, "contributor_editable": false}
+      ]
+    },
+    {
+      "index": 5,
+      "key": "data",
+      "title": "Données",
+      "purpose": "Évaluer les sources, la qualité et l'accessibilité des données.",
+      "questions": [
+        {"key": "data_sources", "field_type": "list", "label": "Sources de données", "help_text": "Une source par ligne.", "schema": {"type": "array", "min_items": 1, "max_items": 20, "items": {"type": "string", "min_length": 3}}, "required": true, "contributor_editable": true},
+        {"key": "data_owner", "field_type": "text", "label": "Propriétaire des données", "schema": {"type": "string", "min_length": 2, "max_length": 255}, "required": true, "contributor_editable": true},
+        {"key": "data_availability", "field_type": "select", "label": "Disponibilité", "options": [{"value": "available", "label": "Disponible"}, {"value": "limited", "label": "Partielle"}, {"value": "unavailable", "label": "Indisponible"}], "schema": {"type": "string", "enum": ["available", "limited", "unavailable"]}, "required": true, "contributor_editable": true},
+        {"key": "data_unavailable_reason", "field_type": "textarea", "label": "Pourquoi les données ne sont pas disponibles", "schema": {"type": "string", "min_length": 5, "max_length": 1500}, "required": false, "visible_if": [{"question_key": "data_availability", "operator": "equals", "value": "unavailable"}], "required_if": [{"question_key": "data_availability", "operator": "equals", "value": "unavailable"}], "contributor_editable": true},
+        {"key": "data_type", "field_type": "select", "label": "Type de données", "options": [{"value": "structured", "label": "Structurées"}, {"value": "document", "label": "Documentaires"}, {"value": "multimodal", "label": "Multimodales"}], "schema": {"type": "string", "enum": ["structured", "document", "multimodal"]}, "required": true, "contributor_editable": true},
+        {"key": "data_quality_score", "field_type": "scale_1_to_5", "label": "Qualité des données (1-5)", "schema": {"type": "integer", "minimum": 1, "maximum": 5}, "required": false, "visible_if": [{"question_key": "data_availability", "operator": "not_equals", "value": "unavailable"}], "required_if": [{"question_key": "data_availability", "operator": "not_equals", "value": "unavailable"}], "contributor_editable": true},
+        {"key": "pilot_accessibility", "field_type": "select", "label": "Accessibilité pour un pilote", "options": [{"value": "ready", "label": "Prête"}, {"value": "needs_work", "label": "Préparation nécessaire"}, {"value": "blocked", "label": "Bloquée"}], "schema": {"type": "string", "enum": ["ready", "needs_work", "blocked"]}, "required": false, "visible_if": [{"question_key": "data_availability", "operator": "not_equals", "value": "unavailable"}], "required_if": [{"question_key": "data_availability", "operator": "not_equals", "value": "unavailable"}], "contributor_editable": true},
+        {"key": "sensitive_data_flag", "field_type": "select", "label": "Présence de données personnelles ou sensibles", "options": [{"value": "none", "label": "Aucune"}, {"value": "personal", "label": "Personnelles"}, {"value": "sensitive", "label": "Sensibles"}], "schema": {"type": "string", "enum": ["none", "personal", "sensitive"]}, "required": true, "contributor_editable": true},
+        {"key": "connectors_needed", "field_type": "textarea", "label": "Connecteurs ou extractions nécessaires", "schema": {"type": "string", "min_length": 2, "max_length": 1500}, "required": false, "contributor_editable": true}
+      ]
+    },
+    {
+      "index": 6,
+      "key": "technical",
+      "title": "Technique et opérations",
+      "purpose": "Qualifier la faisabilité technique et l'exploitation du service.",
+      "questions": [
+        {"key": "integration_dependencies", "field_type": "textarea", "label": "Systèmes et dépendances", "schema": {"type": "string", "min_length": 4, "max_length": 2000}, "required": true, "contributor_editable": true},
+        {"key": "deployment_environment", "field_type": "select", "label": "Environnement accepté", "options": [{"value": "saas", "label": "SaaS privé"}, {"value": "customer_vpc", "label": "VPC client"}, {"value": "on_prem", "label": "On-premise"}], "schema": {"type": "string", "enum": ["saas", "customer_vpc", "on_prem"]}, "required": true, "contributor_editable": true},
+        {"key": "latency_availability_expectation", "field_type": "text", "label": "Exigence de latence / disponibilité", "schema": {"type": "string", "min_length": 3, "max_length": 255}, "required": false, "contributor_editable": true},
+        {"key": "team_skills", "field_type": "textarea", "label": "Compétences de l'équipe", "schema": {"type": "string", "min_length": 3, "max_length": 1200}, "required": false, "contributor_editable": true},
+        {"key": "support_owner", "field_type": "text", "label": "Responsable support / run", "schema": {"type": "string", "min_length": 2, "max_length": 255}, "required": true, "contributor_editable": true},
+        {"key": "training_needs", "field_type": "textarea", "label": "Besoins de formation", "schema": {"type": "string", "min_length": 2, "max_length": 1200}, "required": false, "contributor_editable": true},
+        {"key": "dependency_statement", "field_type": "textarea", "label": "Dépendance clé ou mention 'aucune'", "schema": {"type": "string", "min_length": 3, "max_length": 1200}, "required": true, "contributor_editable": true},
+        {"key": "effort_band", "field_type": "select", "label": "Bande d'effort / investissement", "options": [{"value": "low", "label": "Faible"}, {"value": "medium", "label": "Moyenne"}, {"value": "high", "label": "Élevée"}], "schema": {"type": "string", "enum": ["low", "medium", "high"]}, "required": true, "contributor_editable": true}
+      ]
+    },
+    {
+      "index": 7,
+      "key": "risk",
+      "title": "Risque et gouvernance",
+      "purpose": "Rendre explicites les contraintes de contrôle, de données et d'accès.",
+      "questions": [
+        {"key": "bad_answer_impact", "field_type": "select", "label": "Impact d'une mauvaise réponse", "options": [{"value": "low", "label": "Faible"}, {"value": "medium", "label": "Modéré"}, {"value": "high", "label": "Élevé"}, {"value": "critical", "label": "Critique"}], "schema": {"type": "string", "enum": ["low", "medium", "high", "critical"]}, "required": true, "contributor_editable": true},
+        {"key": "affected_person_decision", "field_type": "boolean", "label": "La décision impacte-t-elle une personne ?", "schema": {"type": "boolean"}, "required": true, "contributor_editable": true},
+        {"key": "explanation_required", "field_type": "boolean", "label": "Une explicabilité est-elle requise ?", "schema": {"type": "boolean"}, "required": true, "contributor_editable": true},
+        {"key": "human_validation_required", "field_type": "select", "label": "Validation humaine requise", "options": [{"value": "mandatory", "label": "Obligatoire"}, {"value": "threshold_based", "label": "Selon seuils"}, {"value": "sample_based", "label": "Échantillonnage"}], "schema": {"type": "string", "enum": ["mandatory", "threshold_based", "sample_based"]}, "required": true, "contributor_editable": true},
+        {"key": "data_boundary", "field_type": "select", "label": "Frontière de données", "options": [{"value": "internal_only", "label": "Interne uniquement"}, {"value": "regional", "label": "Régional / UE"}, {"value": "approved_processor", "label": "Sous-traitant approuvé"}], "schema": {"type": "string", "enum": ["internal_only", "regional", "approved_processor"]}, "required": true, "contributor_editable": true},
+        {"key": "audit_logging_requirement", "field_type": "boolean", "label": "Traçabilité / audit requis", "schema": {"type": "boolean"}, "required": true, "contributor_editable": true},
+        {"key": "access_model", "field_type": "select", "label": "Modèle d'accès", "options": [{"value": "named_users", "label": "Utilisateurs nominatifs"}, {"value": "rbac", "label": "RBAC"}, {"value": "segregated", "label": "Segregated / need-to-know"}], "schema": {"type": "string", "enum": ["named_users", "rbac", "segregated"]}, "required": true, "contributor_editable": true},
+        {"key": "compliance_constraints", "field_type": "textarea", "label": "Contraintes conformité", "schema": {"type": "string", "min_length": 3, "max_length": 1500}, "required": false, "contributor_editable": true},
+        {"key": "risk_owner", "field_type": "text", "label": "Responsable du risque", "schema": {"type": "string", "min_length": 2, "max_length": 255}, "required": true, "contributor_editable": true},
+        {"key": "mitigation_plan", "field_type": "textarea", "label": "Plan de mitigation", "schema": {"type": "string", "min_length": 8, "max_length": 2000}, "required": false, "visible_if": [{"question_key": "bad_answer_impact", "operator": "in", "value": ["high", "critical"]}], "required_if": [{"question_key": "bad_answer_impact", "operator": "in", "value": ["high", "critical"]}], "contributor_editable": true},
+        {"key": "risk_acceptance", "field_type": "boolean", "label": "Risque accepté pour une recommandation Go/Pilot", "schema": {"type": "boolean"}, "required": true, "contributor_editable": false},
+        {"key": "risk_hypothesis", "field_type": "textarea", "label": "Hypothèse de risque à valider", "schema": {"type": "string", "min_length": 5, "max_length": 1500}, "required": true, "contributor_editable": false}
+      ]
+    },
+    {
+      "index": 8,
+      "key": "review",
+      "title": "Revue et soumission",
+      "purpose": "Confirmer la recommandation à soumettre avec une synthèse immutable.",
+      "questions": [
+        {"key": "preliminary_recommendation", "field_type": "radio", "label": "Recommandation préliminaire", "options": [{"value": "Go", "label": "Go — passer à l'échelle"}, {"value": "Pilot", "label": "Pilot — valider en conditions réelles"}, {"value": "Defer", "label": "Defer — différer"}, {"value": "Reject", "label": "Reject — ne pas poursuivre"}], "schema": {"type": "string", "enum": ["Go", "Pilot", "Defer", "Reject"]}, "required": true, "contributor_editable": false},
+        {"key": "review_notes", "field_type": "textarea", "label": "Notes de revue", "schema": {"type": "string", "min_length": 5, "max_length": 2000}, "required": false, "contributor_editable": false}
+      ]
+    }
+  ]
+}

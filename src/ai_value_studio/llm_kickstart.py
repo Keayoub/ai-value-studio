@@ -109,5 +109,6 @@ class KickstartService:
             for pattern in SENSITIVE_PATTERNS:
                 if pattern.search(value):
                     raise ValueError(
-                        "Sensitive/raw organizational data detected in kickstart input. Provide a short, non-sensitive summary only."
+                        "Sensitive/raw organizational data detected in kickstart input. "
+                        "Provide a short, non-sensitive summary only."
                     )
