@@ -1,14 +1,17 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
 import {
-  _electron as electron,
+  chromium,
   expect,
   test,
+  type Browser,
   type BrowserContext,
-  type ElectronApplication,
+  type Page,
   type Route,
 } from "@playwright/test";
+import { closeWithCleanup } from "../helpers/close-with-cleanup";
 
 const backendUrl = "http://127.0.0.1:8010/api/v1";
 const healthCheckUrl = new URL("/health", new URL(backendUrl).origin).toString();
@@ -40,11 +43,18 @@ const packagedDesktopLaunchStepTimeoutMs = 45_000;
 const packagedDesktopWindowStepTimeoutMs = 45_000;
 const packagedDesktopUiStepTimeoutMs = 20_000;
 const packagedDesktopCleanupTimeoutMs = 15_000;
+const packagedDesktopPollingIntervalMs = 100;
 type DisposeApiProxy = (closeApp: () => Promise<void>) => Promise<void>;
 type ApiProxyController = {
   dispose: DisposeApiProxy;
   waitForSuccessfulHealthCheck: () => Promise<void>;
   waitForSuccessfulReviewInboxResponse: () => Promise<void>;
+};
+type PackagedDesktopSession = {
+  browser: Browser;
+  close: () => Promise<void>;
+  context: BrowserContext;
+  page: Page;
 };
 
 const closeWithoutApiProxy: DisposeApiProxy = async (closeApp) => {
@@ -120,6 +130,101 @@ function prepareDesktopConfigForSmoke() {
 function createSmokeHomeDirectory() {
   fs.mkdirSync(smokeProfileRoot, { recursive: true });
   return fs.mkdtempSync(path.join(smokeProfileRoot, "smoke-home-"));
+}
+
+function waitForTimeout(timeoutMs: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, timeoutMs);
+  });
+}
+
+function appendProcessOutput(buffer: string, chunk: Buffer | string) {
+  const next = `${buffer}${chunk.toString()}`;
+  return next.length <= 8_000 ? next : next.slice(-8_000);
+}
+
+function formatProcessDiagnostics(stdoutLog: string, stderrLog: string) {
+  const stdout = stdoutLog.trim();
+  const stderr = stderrLog.trim();
+
+  return `stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`;
+}
+
+function readDevToolsEndpointFromLog(output: string) {
+  const devToolsEndpointMatch = output.match(
+    /(ws:\/\/127\.0\.0\.1:\d+\/devtools\/browser\/[^\s"]+)/,
+  );
+
+  return devToolsEndpointMatch?.[1] ?? null;
+}
+
+function readDevToolsEndpointFromFile(devToolsActivePortPath: string) {
+  if (!fs.existsSync(devToolsActivePortPath)) {
+    return null;
+  }
+
+  const [portLine, browserPathLine] = fs
+    .readFileSync(devToolsActivePortPath, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim());
+
+  if (!portLine) {
+    return null;
+  }
+
+  if (browserPathLine?.startsWith("/")) {
+    return `ws://127.0.0.1:${portLine}${browserPathLine}`;
+  }
+
+  return `http://127.0.0.1:${portLine}`;
+}
+
+function waitForProcessExit(childProcess: ChildProcess) {
+  return new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
+    childProcess.once("error", reject);
+    childProcess.once("exit", (code, signal) => {
+      resolve({
+        code,
+        signal,
+      });
+    });
+  });
+}
+
+async function terminateChildProcess(childProcess: ChildProcess) {
+  if (childProcess.exitCode !== null || childProcess.signalCode !== null) {
+    return;
+  }
+
+  const waitForExit = waitForProcessExit(childProcess);
+  const signalProcessGroup = (signal: NodeJS.Signals) => {
+    if (!childProcess.pid) {
+      return;
+    }
+
+    try {
+      process.kill(-childProcess.pid, signal);
+    } catch (error) {
+      const errorCode = (error as NodeJS.ErrnoException).code;
+      if (errorCode !== "ESRCH") {
+        throw error;
+      }
+    }
+  };
+
+  signalProcessGroup("SIGTERM");
+  const gracefulShutdown = await Promise.race([
+    waitForExit.then(() => true),
+    waitForTimeout(packagedDesktopCleanupTimeoutMs).then(() => false),
+  ]);
+
+  if (gracefulShutdown) {
+    await waitForExit;
+    return;
+  }
+
+  signalProcessGroup("SIGKILL");
+  await waitForExit;
 }
 
 async function proxyApiRequests(context: BrowserContext): Promise<ApiProxyController> {
@@ -286,37 +391,150 @@ async function proxyApiRequests(context: BrowserContext): Promise<ApiProxyContro
   };
 }
 
-async function waitForFirstWindow(electronApp: ElectronApplication) {
-  try {
-    return await electronApp.firstWindow({ timeout: packagedDesktopWindowStepTimeoutMs });
-  } catch (error) {
-    const browserWindows = await electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().map((browserWindow) => ({
-        destroyed: browserWindow.isDestroyed(),
-        title: browserWindow.getTitle(),
-        visible: browserWindow.isVisible(),
-      })),
-    );
+async function waitForFirstPage(context: BrowserContext) {
+  const timeoutAt = Date.now() + packagedDesktopWindowStepTimeoutMs;
+
+  while (Date.now() < timeoutAt) {
+    const firstPage = context.pages()[0];
+    if (firstPage) {
+      return firstPage;
+    }
+
+    await waitForTimeout(packagedDesktopPollingIntervalMs);
+  }
+
+  throw new Error("Timed out waiting for the packaged desktop window page.");
+}
+
+async function waitForBrowserContext(browser: Browser) {
+  const timeoutAt = Date.now() + packagedDesktopWindowStepTimeoutMs;
+
+  while (Date.now() < timeoutAt) {
+    const [context] = browser.contexts();
+    if (context) {
+      return context;
+    }
+
+    await waitForTimeout(packagedDesktopPollingIntervalMs);
+  }
+
+  throw new Error("Chromium CDP connected before Electron exposed a default browser context.");
+}
+
+async function launchPackagedDesktop(packagedAppPath: string, smokeHomeDirectory: string) {
+  const chromiumProfileDirectory = path.join(smokeHomeDirectory, "chromium-profile");
+  const devToolsActivePortPath = path.join(chromiumProfileDirectory, "DevToolsActivePort");
+  const childProcess = spawn(
+    packagedAppPath,
+    [
+      "--remote-debugging-address=127.0.0.1",
+      "--remote-debugging-port=0",
+      `--user-data-dir=${chromiumProfileDirectory}`,
+    ],
+    {
+      cwd: path.dirname(packagedAppPath),
+      detached: true,
+      env: {
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        ),
+        DESKTOP_ALLOW_RENDERER_DEBUG_TOOLS: "1",
+        HOME: smokeHomeDirectory,
+        XDG_CONFIG_HOME: path.join(smokeHomeDirectory, ".config"),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  let stdoutLog = "";
+  let stderrLog = "";
+  let launchError: Error | null = null;
+  childProcess.stdout?.on("data", (chunk: Buffer) => {
+    stdoutLog = appendProcessOutput(stdoutLog, chunk);
+  });
+  childProcess.stderr?.on("data", (chunk: Buffer) => {
+    stderrLog = appendProcessOutput(stderrLog, chunk);
+  });
+  childProcess.once("error", (error) => {
+    launchError = error;
+  });
+
+  const exitPromise = waitForProcessExit(childProcess);
+  const waitForDevToolsEndpoint = async () => {
+    const timeoutAt = Date.now() + packagedDesktopLaunchStepTimeoutMs;
+
+    while (Date.now() < timeoutAt) {
+      if (launchError) {
+        throw new Error(
+          `Packaged desktop failed to launch before exposing a Chromium DevTools endpoint. ${formatProcessDiagnostics(stdoutLog, stderrLog)}`,
+          { cause: launchError },
+        );
+      }
+
+      if (childProcess.exitCode !== null || childProcess.signalCode !== null) {
+        const exitResult = await exitPromise;
+        throw new Error(
+          `Packaged desktop exited before exposing a Chromium DevTools endpoint. exitCode=${exitResult.code} signal=${exitResult.signal} ${formatProcessDiagnostics(stdoutLog, stderrLog)}`,
+        );
+      }
+
+      const endpointFromLog =
+        readDevToolsEndpointFromLog(stderrLog) ?? readDevToolsEndpointFromLog(stdoutLog);
+      if (endpointFromLog) {
+        return endpointFromLog;
+      }
+
+      const endpointFromFile = readDevToolsEndpointFromFile(devToolsActivePortPath);
+      if (endpointFromFile) {
+        return endpointFromFile;
+      }
+
+      await waitForTimeout(packagedDesktopPollingIntervalMs);
+    }
 
     throw new Error(
-      `Timed out waiting for the packaged desktop window. BrowserWindows=${JSON.stringify(browserWindows)}`,
+      `Timed out waiting for the packaged desktop Chromium DevTools endpoint. ${formatProcessDiagnostics(stdoutLog, stderrLog)}`,
+    );
+  };
+
+  try {
+    const browser = await chromium.connectOverCDP(await waitForDevToolsEndpoint(), {
+      timeout: packagedDesktopLaunchStepTimeoutMs,
+    });
+    const context = await waitForBrowserContext(browser);
+    const page = await waitForFirstPage(context);
+    await page.waitForLoadState("domcontentloaded", {
+      timeout: packagedDesktopWindowStepTimeoutMs,
+    });
+
+    return {
+      browser,
+      close: () =>
+        closeWithCleanup(
+          () => browser.close(),
+          () => terminateChildProcess(childProcess),
+          "Failed to close the packaged desktop browser and terminate its detached process group.",
+        ),
+      context,
+      page,
+    } satisfies PackagedDesktopSession;
+  } catch (error) {
+    await terminateChildProcess(childProcess);
+    throw new Error(
+      `Failed to launch the packaged desktop via Chromium CDP. ${formatProcessDiagnostics(stdoutLog, stderrLog)}`,
       { cause: error },
     );
   }
 }
 
-async function closeElectronApp(electronApp: ElectronApplication | null) {
-  if (!electronApp) {
+async function closePackagedDesktop(desktopSession: PackagedDesktopSession | null) {
+  if (!desktopSession) {
     return;
   }
 
-  const appClosed =
-    electronApp.process().exitCode === null
-      ? electronApp.waitForEvent("close", { timeout: packagedDesktopCleanupTimeoutMs })
-      : Promise.resolve();
-
-  await electronApp.close();
-  await appClosed;
+  await desktopSession.close();
 }
 
 test("launches the packaged Linux desktop shell in dev auth mode and opens a workspace", async () => {
@@ -329,41 +547,25 @@ test("launches the packaged Linux desktop shell in dev auth mode and opens a wor
     prepareDesktopConfigForSmoke();
   });
   const smokeHomeDirectory = createSmokeHomeDirectory();
-  let electronApp: ElectronApplication | null = null;
+  let desktopSession: PackagedDesktopSession | null = null;
   let disposeApiProxy: DisposeApiProxy = closeWithoutApiProxy;
   let waitForSuccessfulHealthCheck: () => Promise<void> = async () => Promise.resolve();
   let waitForSuccessfulReviewInboxResponse: () => Promise<void> = async () => Promise.resolve();
 
   try {
-    electronApp = await test.step("launch the packaged Linux executable", async () =>
-      electron.launch({
-        executablePath: packagedAppPath,
-        cwd: path.dirname(packagedAppPath),
-        env: {
-          ...Object.fromEntries(
-            Object.entries(process.env).filter(
-              (entry): entry is [string, string] => typeof entry[1] === "string",
-            ),
-          ),
-          DESKTOP_ALLOW_RENDERER_DEBUG_TOOLS: "1",
-          HOME: smokeHomeDirectory,
-          XDG_CONFIG_HOME: path.join(smokeHomeDirectory, ".config"),
-        },
-      }),
+    desktopSession = await test.step(
+      "launch the packaged Linux executable via Chromium CDP",
+      async () => launchPackagedDesktop(packagedAppPath, smokeHomeDirectory),
       { timeout: packagedDesktopLaunchStepTimeoutMs },
     );
-    const launchedElectronApp = electronApp;
-    const apiProxyController = await proxyApiRequests(launchedElectronApp.context());
+    const launchedDesktopSession = desktopSession;
+    const apiProxyController = await proxyApiRequests(launchedDesktopSession.context);
     disposeApiProxy = apiProxyController.dispose;
     waitForSuccessfulHealthCheck = apiProxyController.waitForSuccessfulHealthCheck;
     waitForSuccessfulReviewInboxResponse = apiProxyController.waitForSuccessfulReviewInboxResponse;
 
-    const page = await test.step("open the first desktop window", async () => {
-      const firstWindow = await waitForFirstWindow(launchedElectronApp);
-      await firstWindow.waitForLoadState("domcontentloaded", {
-        timeout: packagedDesktopWindowStepTimeoutMs,
-      });
-      return firstWindow;
+    const page = await test.step("open the first desktop window", () => {
+      return launchedDesktopSession.page;
     }, { timeout: packagedDesktopWindowStepTimeoutMs });
 
     await test.step("sign in with the seeded dev identity", async () => {
@@ -416,7 +618,7 @@ test("launches the packaged Linux desktop shell in dev auth mode and opens a wor
     }, { timeout: packagedDesktopUiStepTimeoutMs });
   } finally {
     await disposeApiProxy(async () => {
-      await closeElectronApp(electronApp);
+      await closePackagedDesktop(desktopSession);
     });
     fs.rmSync(desktopConfigPath, { force: true });
     fs.rmSync(smokeHomeDirectory, { recursive: true, force: true });
