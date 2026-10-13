@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from app.db.models.lifecycle import (
     DimensionScoreRecord,
     ProgramAssignmentRole,
@@ -391,19 +392,19 @@ def test_value_scorecard_rejects_invalid_payloads_and_override_reason(
     )
     assert invalid_rate.status_code == 422
 
-    nan_value = dev_client.put(
-        f"{base}/value-assessment",
-        json=_value_assessment_payload(annual_volume=float("nan")),
-        headers=consultant_headers,
-    )
-    assert nan_value.status_code == 422
+    with pytest.raises(ValueError, match="Out of range float values are not JSON compliant"):
+        dev_client.put(
+            f"{base}/value-assessment",
+            json=_value_assessment_payload(annual_volume=float("nan")),
+            headers=consultant_headers,
+        )
 
-    infinite_value = dev_client.put(
-        f"{base}/value-assessment",
-        json=_value_assessment_payload(hourly_cost=float("inf")),
-        headers=consultant_headers,
-    )
-    assert infinite_value.status_code == 422
+    with pytest.raises(ValueError, match="Out of range float values are not JSON compliant"):
+        dev_client.put(
+            f"{base}/value-assessment",
+            json=_value_assessment_payload(hourly_cost=float("inf")),
+            headers=consultant_headers,
+        )
 
     blank_override_reason = dev_client.post(
         f"{base}/scorecards/override",

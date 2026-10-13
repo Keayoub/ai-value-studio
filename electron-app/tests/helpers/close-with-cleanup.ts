@@ -20,7 +20,9 @@ export async function closeWithCleanup(
       throw cleanupError;
     }
 
-    throw new AggregateError([closeError, cleanupError], cleanupFailureMessage);
+    throw new AggregateError([closeError, cleanupError], cleanupFailureMessage, {
+      cause: cleanupError,
+    });
   }
 
   if (didCloseFail) {
