@@ -580,5 +580,10 @@ export async function completeAndSubmitWizard(page: Page) {
   await page
     .getByLabel("Notes de revue")
     .fill("Pilote limité au tri initial avec revue humaine obligatoire.");
+  const submitted = page.waitForResponse((response) =>
+    /\/assessments\/[^/]+\/submit$/.test(new URL(response.url()).pathname) &&
+    response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: SUBMIT_LABEL }).click();
+  expect((await submitted).ok(), "Submitting assessment").toBe(true);
 }

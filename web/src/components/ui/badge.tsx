@@ -15,7 +15,12 @@ export function Badge({
     info: "bg-[var(--studio-info-soft)] text-[var(--studio-info)]",
   }[tone];
   return (
-    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-medium", toneClasses)}>
+    <span
+      className={cn(
+        "inline-flex min-h-7 items-center rounded-full px-2.5 py-1 text-xs font-medium",
+        toneClasses,
+      )}
+    >
       {children}
     </span>
   );

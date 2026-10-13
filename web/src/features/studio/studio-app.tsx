@@ -12,7 +12,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Stepper } from "@/components/ui/stepper";
 import { DataTable } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
@@ -42,9 +41,9 @@ import {
   formatWorkspaceRoleLabel,
   studioCopyFor,
 } from "@/features/studio/copy";
+import { localizeSeededDevFixtureName } from "@/features/studio/copy.dev";
 import {
   Banner,
-  sessionModeLabelFor,
   UnauthenticatedContent,
 } from "@/features/studio/mode-fragment";
 import { DocumentCentre } from "@/features/studio/document-centre";
@@ -63,11 +62,90 @@ type DesktopConnectivityState = {
   kind: DesktopConnectivityKind;
   healthOrigin: string | null;
 };
+type DecisionSurfaceKey = "review" | "scorecard" | "document-centre";
+type DecisionSurfacePrerequisite = {
+  key: DecisionSurfaceKey;
+  title: string;
+  detail: string;
+};
+type StudioLanguage = "fr" | "en";
 
 const runtimeConfig = getPublicRuntimeConfig(process.env);
 const DESKTOP_HEALTH_CHECK_TIMEOUT_MS = 3_000;
 const DESKTOP_HEALTH_RETRY_DELAY_MS = 750;
 const DESKTOP_HEALTH_MAX_ATTEMPTS = 2;
+
+function hasSubmittedAssessmentSnapshot(useCase: UseCase) {
+  return useCase.current_assessment_version !== null && useCase.submitted_at !== null;
+}
+
+function isPostSubmissionUseCase(useCase: UseCase) {
+  return (
+    useCase.status === "Submitted" ||
+    useCase.status === "ChangesRequested" ||
+    useCase.status === "Approved" ||
+    useCase.status === "Rejected"
+  );
+}
+
+function hasDecisionSurfaceData(useCase: UseCase) {
+  return (
+    hasSubmittedAssessmentSnapshot(useCase) ||
+    useCase.score_version !== null ||
+    useCase.approved_at !== null ||
+    isPostSubmissionUseCase(useCase)
+  );
+}
+
+function hasPreviousAssessmentCycle(useCase: UseCase) {
+  return (useCase.current_assessment_version ?? 0) > 1;
+}
+
+function decisionSurfacePrerequisites(language: StudioLanguage): DecisionSurfacePrerequisite[] {
+  if (language === "fr") {
+    return [
+      {
+        key: "review",
+        title: "Revue sponsor",
+        detail:
+          "Disponible après soumission de la version d’évaluation en cours pour lancer ou relire le cycle de revue.",
+      },
+      {
+        key: "scorecard",
+        title: "Scorecard de valeur et de priorité",
+        detail:
+          "Disponible dès qu’une version courante est soumise afin de recalculer le scorecard sur des données gelées.",
+      },
+      {
+        key: "document-centre",
+        title: "Centre documentaire",
+        detail:
+          "Disponible sur la version soumise; la génération reste pilotée par les prérequis réels d’évaluation, de scorecard et de revue sponsor.",
+      },
+    ];
+  }
+
+  return [
+    {
+      key: "review",
+      title: "Sponsor review",
+      detail:
+        "Available after the current assessment version is submitted so the review cycle can start or earlier cycles can be revisited.",
+    },
+    {
+      key: "scorecard",
+      title: "Value and priority scorecard",
+      detail:
+        "Available once a current version is submitted so recalculation runs against a locked assessment snapshot.",
+    },
+    {
+      key: "document-centre",
+      title: "Document centre",
+      detail:
+        "Available on the submitted version; generation remains governed by the real assessment, scorecard, and sponsor review prerequisites.",
+    },
+  ];
+}
 
 export function StudioApp({ route }: { route: StudioRoute }) {
   const auth = useAuth();
@@ -87,6 +165,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [useCases, setUseCases] = useState<UseCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [primaryNavOpen, setPrimaryNavOpen] = useState(false);
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
   const [workspaceForm, setWorkspaceForm] = useState({
     name: "",
@@ -111,17 +190,10 @@ export function StudioApp({ route }: { route: StudioRoute }) {
   const selectedUseCase = resolveVisibleUseCase(useCases, useCaseId);
   const language = workspaceDisplayLanguage(workspace);
   const t = useMemo(() => studioCopyFor(language), [language]);
-  const steps = useMemo(
-    () =>
-      [
-        { id: "home", label: t.steps.home },
-        { id: "workspace", label: t.steps.workspace },
-        { id: "program", label: t.steps.program },
-        { id: "use-case", label: t.steps.useCase },
-        { id: "portfolio", label: t.steps.portfolio },
-        { id: "members", label: t.steps.members },
-      ] satisfies Array<{ id: StudioRoute; label: string }>,
-    [t],
+  const presentDevFixtureName = useCallback(
+    (value: string | null | undefined) =>
+      runtimeConfig.authMode === "dev" ? localizeSeededDevFixtureName(language, value) : value,
+    [language],
   );
   const activeRoleLabel =
     auth.roleLabel &&
@@ -130,6 +202,26 @@ export function StudioApp({ route }: { route: StudioRoute }) {
       : auth.roleLabel;
   const canCreateWorkspace =
     auth.me?.token_roles.includes("Consultant") || auth.me?.token_roles.includes("WorkspaceAdmin");
+  const routeLinks = [
+    { id: "home", href: hrefFor("home", {}), label: t.navigation.home },
+    { id: "workspace", href: hrefFor("workspace", { workspaceId }), label: t.navigation.workspace },
+    { id: "program", href: hrefFor("program", { workspaceId, programId }), label: t.navigation.program },
+    {
+      id: "use-case",
+      href: hrefFor("use-case", { workspaceId, programId, useCaseId }),
+      label: t.navigation.useCase,
+    },
+    { id: "portfolio", href: hrefFor("portfolio", { workspaceId, programId }), label: t.navigation.portfolio },
+    { id: "members", href: hrefFor("members", { workspaceId }), label: t.navigation.members },
+  ] satisfies Array<{ id: StudioRoute; href: string; label: string }>;
+  const decisionSurfaceOpen = selectedUseCase ? hasDecisionSurfaceData(selectedUseCase) : false;
+  const reviewSurfaceOpen = selectedUseCase
+    ? decisionSurfaceOpen || hasPreviousAssessmentCycle(selectedUseCase)
+    : false;
+  const useCasePrerequisites = useMemo(
+    () => decisionSurfacePrerequisites(language === "fr" ? "fr" : "en"),
+    [language],
+  );
 
   useEffect(() => {
     let active = true;
@@ -346,7 +438,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
               description={t.home.workspaceDescription}
               action={
                 canCreateWorkspace ? (
-                  <Button variant="secondary" onClick={() => setWorkspaceDialogOpen(true)}>
+                  <Button onClick={() => setWorkspaceDialogOpen(true)}>
                     {t.home.createWorkspace}
                   </Button>
                 ) : null
@@ -357,14 +449,14 @@ export function StudioApp({ route }: { route: StudioRoute }) {
               headers={t.home.workspaceHeaders}
               rows={workspaces.map((item) => [
                 <div key={item.id} className="space-y-1">
-                  <p className="font-medium">{item.name}</p>
-                  <p className="text-xs text-[var(--studio-muted)]">{item.description ?? t.common.none}</p>
+                  <p className="font-medium">{presentDevFixtureName(item.name)}</p>
+                  <p className="text-xs text-[var(--studio-muted)]">{presentDevFixtureName(item.description) ?? t.common.none}</p>
                 </div>,
                 <Badge key={`${item.id}-role`}>{formatWorkspaceRoleLabel(language, item.my_role)}</Badge>,
                 item.default_language,
                 <Link
                   key={`${item.id}-link`}
-                  className="text-[var(--studio-accent)] underline underline-offset-2 hover:text-[var(--studio-accent-hover)]"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-[var(--studio-border)] px-3 py-2 text-sm font-medium text-[var(--studio-accent)] transition hover:border-[var(--studio-accent)] hover:text-[var(--studio-accent-hover)]"
                   href={hrefFor("workspace", { workspaceId: item.id })}
                 >
                   {t.common.open}
@@ -384,7 +476,10 @@ export function StudioApp({ route }: { route: StudioRoute }) {
               description={t.home.activeIdentityDescription}
             />
             <dl className="grid gap-3 text-sm">
-              <InfoRow label={t.home.activeIdentityName} value={auth.displayName ?? t.common.none} />
+              <InfoRow
+                label={t.home.activeIdentityName}
+                value={presentDevFixtureName(auth.displayName) ?? t.common.none}
+              />
               <InfoRow label={t.home.activeIdentityRole} value={activeRoleLabel ?? t.common.none} />
               <InfoRow label={t.home.activeIdentitySubject} value={auth.me.subject} />
               <InfoRow
@@ -411,8 +506,8 @@ export function StudioApp({ route }: { route: StudioRoute }) {
         <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
           <Card>
             <CardHeader
-              title={workspace?.name ?? t.navigation.workspace}
-              description={workspace?.description ?? t.workspace.defaultDescription}
+              title={presentDevFixtureName(workspace?.name) ?? t.navigation.workspace}
+              description={presentDevFixtureName(workspace?.description) ?? t.workspace.defaultDescription}
               action={
                 viewer.canViewMembers ? (
                   <Link
@@ -453,7 +548,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                   resolveMembershipLabel(members, program.sponsor_membership_id),
                   <Link
                     key={`${program.id}-link`}
-                    className="text-[var(--studio-accent)] underline underline-offset-2 hover:text-[var(--studio-accent-hover)]"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-[var(--studio-border)] px-3 py-2 text-sm font-medium text-[var(--studio-accent)] transition hover:border-[var(--studio-accent)] hover:text-[var(--studio-accent-hover)]"
                     href={hrefFor("program", { workspaceId, programId: program.id })}
                   >
                     {t.common.open}
@@ -635,7 +730,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                   resolveMembershipLabel(members, item.owner_membership_id),
                   <Link
                     key={`${item.id}-link`}
-                    className="text-[var(--studio-accent)] underline underline-offset-2 hover:text-[var(--studio-accent-hover)]"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-[var(--studio-border)] px-3 py-2 text-sm font-medium text-[var(--studio-accent)] transition hover:border-[var(--studio-accent)] hover:text-[var(--studio-accent-hover)]"
                     href={hrefFor("use-case", { workspaceId, programId, useCaseId: item.id })}
                   >
                     {t.common.open}
@@ -698,121 +793,215 @@ export function StudioApp({ route }: { route: StudioRoute }) {
     }
 
     if (route === "use-case") {
+      const renderUseCaseDetails = () => (
+        <>
+          <div className="hidden xl:block">
+            <CardHeader
+              title={selectedUseCase.title}
+              description={selectedUseCase.recommendation ?? t.useCase.defaultDescription}
+            />
+          </div>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <InfoRow
+              label={t.common.status}
+              value={formatUseCaseStatusLabel(language, selectedUseCase.status)}
+            />
+            <InfoRow label={t.common.department} value={selectedUseCase.department ?? t.common.none} />
+            <InfoRow
+              label={t.common.owner}
+              value={resolveMembershipLabel(members, selectedUseCase.owner_membership_id)}
+            />
+            <InfoRow label={t.common.category} value={selectedUseCase.category ?? t.common.none} />
+            <InfoRow
+              label={t.common.priorityScore}
+              value={
+                selectedUseCase.priority_score === null
+                  ? t.common.none
+                  : selectedUseCase.priority_score.toFixed(3)
+              }
+            />
+            <InfoRow label={t.common.confidence} value={selectedUseCase.confidence_level ?? t.common.none} />
+          </dl>
+          {viewer.canManageUseCases ? (
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <LabeledField label={t.useCase.ownerLabel}>
+                <Select
+                  value={selectedUseCase.owner_membership_id ?? ""}
+                  onChange={(event) => void handlePatchUseCaseOwner(event.target.value)}
+                >
+                  <option value="">{t.common.noOwner}</option>
+                  {members.map((member) => (
+                    <option key={member.membership_id} value={member.membership_id}>
+                      {member.identity.display_name ?? member.membership_id}
+                    </option>
+                  ))}
+                </Select>
+              </LabeledField>
+              {selectedUseCase.status === "Draft" ? (
+                <LabeledField label={t.useCase.statusTransition}>
+                  <Select
+                    aria-label={t.useCase.statusTransition}
+                    defaultValue=""
+                    onChange={(event) => {
+                      if (event.target.value) {
+                        void handleUseCaseTransition(event.target.value as UseCaseStatus);
+                      }
+                    }}
+                  >
+                    <option value="">{t.common.choose}</option>
+                    <option value="InProgress">
+                      {formatUseCaseStatusLabel(language, "InProgress")}
+                    </option>
+                  </Select>
+                </LabeledField>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      );
+      const renderUseCaseNavigation = () => (
+        <Card>
+          <CardHeader
+            title={t.useCase.navigationTitle}
+            description={t.useCase.navigationDescription}
+          />
+          <div className="space-y-3 text-sm">
+            <NavLink href={hrefFor("workspace", { workspaceId })} label={t.navigation.backToWorkspace} />
+            <NavLink href={hrefFor("program", { workspaceId, programId })} label={t.navigation.backToProgram} />
+            {viewer.canViewMembers ? (
+              <NavLink href={hrefFor("members", { workspaceId })} label={t.navigation.viewMembers} />
+            ) : null}
+          </div>
+        </Card>
+      );
+
       return (
         <div className="space-y-6">
-          <div className="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
-            <Card>
-              <CardHeader
-                title={selectedUseCase.title}
-                description={selectedUseCase.recommendation ?? t.useCase.defaultDescription}
-              />
-              <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                <InfoRow
-                  label={t.common.status}
-                  value={formatUseCaseStatusLabel(language, selectedUseCase.status)}
-                />
-                <InfoRow label={t.common.department} value={selectedUseCase.department ?? t.common.none} />
-                <InfoRow
-                  label={t.common.owner}
-                  value={resolveMembershipLabel(members, selectedUseCase.owner_membership_id)}
-                />
-                <InfoRow label={t.common.category} value={selectedUseCase.category ?? t.common.none} />
-                <InfoRow
-                  label={t.common.priorityScore}
-                  value={
-                    selectedUseCase.priority_score === null
-                      ? t.common.none
-                      : selectedUseCase.priority_score.toFixed(3)
-                  }
-                />
-                <InfoRow label={t.common.confidence} value={selectedUseCase.confidence_level ?? t.common.none} />
-              </dl>
-              {viewer.canManageUseCases ? (
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <LabeledField label={t.useCase.ownerLabel}>
-                    <Select
-                      value={selectedUseCase.owner_membership_id ?? ""}
-                      onChange={(event) => void handlePatchUseCaseOwner(event.target.value)}
-                    >
-                      <option value="">{t.common.noOwner}</option>
-                      {members.map((member) => (
-                        <option key={member.membership_id} value={member.membership_id}>
-                          {member.identity.display_name ?? member.membership_id}
-                        </option>
-                      ))}
-                    </Select>
-                  </LabeledField>
-                  {selectedUseCase.status === "Draft" ? (
-                    <LabeledField label={t.useCase.statusTransition}>
-                      <Select
-                        aria-label={t.useCase.statusTransition}
-                        defaultValue=""
-                        onChange={(event) => {
-                          if (event.target.value) {
-                            void handleUseCaseTransition(event.target.value as UseCaseStatus);
-                          }
-                        }}
-                      >
-                        <option value="">{t.common.choose}</option>
-                        <option value="InProgress">
-                          {formatUseCaseStatusLabel(language, "InProgress")}
-                        </option>
-                      </Select>
-                    </LabeledField>
-                  ) : null}
-                </div>
-              ) : null}
-            </Card>
-            <Card>
-              <CardHeader
-                title={t.useCase.navigationTitle}
-                description={t.useCase.navigationDescription}
-              />
-              <div className="space-y-3 text-sm">
-                <NavLink href={hrefFor("workspace", { workspaceId })} label={t.navigation.backToWorkspace} />
-                <NavLink href={hrefFor("program", { workspaceId, programId })} label={t.navigation.backToProgram} />
-                {viewer.canViewMembers ? (
-                  <NavLink href={hrefFor("members", { workspaceId })} label={t.navigation.viewMembers} />
-                ) : null}
-              </div>
-            </Card>
-          </div>
+          <Card className="xl:hidden">
+            <CardHeader
+              title={selectedUseCase.title}
+              description={selectedUseCase.recommendation ?? t.useCase.defaultDescription}
+            />
+          </Card>
           {workspaceId && programId ? (
             <>
-              <UseCaseReviewPanel
-                key={`review:${selectedUseCase.id}:${selectedUseCase.status}:${selectedUseCase.current_assessment_version ?? 0}`}
-                workspaceId={workspaceId}
-                programId={programId}
-                useCase={selectedUseCase}
-                locale={language}
-                onUseCaseChanged={handleRefreshSelectedUseCase}
-              />
-              <DocumentCentre
-                workspaceId={workspaceId}
-                programId={programId}
-                programSponsorMembershipId={selectedProgram?.sponsor_membership_id ?? null}
-                useCase={selectedUseCase}
-                locale={language}
-                viewerRole={viewer.role}
-              />
-              <UseCaseWizard
-                key={`wizard:${selectedUseCase.id}:${selectedUseCase.status}:${selectedUseCase.current_assessment_version ?? 0}`}
-                workspaceId={workspaceId}
-                programId={programId}
-                workspace={workspace}
-                useCase={selectedUseCase}
-                members={members}
-                locale={language}
-                viewerRole={viewer.role}
-                onUseCaseChanged={handleRefreshSelectedUseCase}
-              />
-              <UseCaseScorecard
-                workspaceId={workspaceId}
-                programId={programId}
-                useCase={selectedUseCase}
-                locale={language}
-                onUseCaseSync={handleUseCaseScoreSync}
-              />
+              <div className="flex flex-col gap-6">
+                <div className="order-1 xl:order-2">
+                  <UseCaseWizard
+                    key={`wizard:${selectedUseCase.id}:${selectedUseCase.status}:${selectedUseCase.current_assessment_version ?? 0}`}
+                    workspaceId={workspaceId}
+                    programId={programId}
+                    workspace={workspace}
+                    useCase={selectedUseCase}
+                    members={members}
+                    locale={language}
+                    viewerRole={viewer.role}
+                    onUseCaseChanged={handleRefreshSelectedUseCase}
+                  />
+                </div>
+                <div className="order-2 grid gap-6 xl:order-1 xl:grid-cols-[1.15fr,0.85fr]">
+                  <Card>{renderUseCaseDetails()}</Card>
+                  {renderUseCaseNavigation()}
+                </div>
+              </div>
+              {reviewSurfaceOpen ? (
+                <>
+                  <UseCaseReviewPanel
+                    key={`review:${selectedUseCase.id}:${selectedUseCase.status}:${selectedUseCase.current_assessment_version ?? 0}`}
+                    workspaceId={workspaceId}
+                    programId={programId}
+                    useCase={selectedUseCase}
+                    locale={language}
+                    onUseCaseChanged={handleRefreshSelectedUseCase}
+                  />
+                  {decisionSurfaceOpen ? (
+                    <>
+                      <DocumentCentre
+                        workspaceId={workspaceId}
+                        programId={programId}
+                        programSponsorMembershipId={selectedProgram?.sponsor_membership_id ?? null}
+                        useCase={selectedUseCase}
+                        locale={language}
+                        viewerRole={viewer.role}
+                      />
+                      <UseCaseScorecard
+                        workspaceId={workspaceId}
+                        programId={programId}
+                        useCase={selectedUseCase}
+                        locale={language}
+                        onUseCaseSync={handleUseCaseScoreSync}
+                      />
+                    </>
+                  ) : null}
+                  {!decisionSurfaceOpen ? (
+                    <Card>
+                      <CardHeader
+                        title={
+                          language === "fr"
+                            ? "Surfaces de décision"
+                            : "Decision surfaces"
+                        }
+                        description={
+                          language === "fr"
+                            ? "Les panneaux aval complets s’ouvrent après soumission de la version courante. Les prérequis ci-dessous reflètent le cycle réel."
+                            : "Full downstream panels open after the current version is submitted. The prerequisites below reflect the real lifecycle."
+                        }
+                      />
+                      <div className="divide-y divide-[var(--studio-border)] rounded-2xl border border-[var(--studio-border)]">
+                        {useCasePrerequisites.map((item) => (
+                          <div
+                            key={item.key}
+                            className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-start md:justify-between"
+                          >
+                            <div className="space-y-1">
+                              <p className="font-medium text-[var(--studio-foreground)]">{item.title}</p>
+                              <p className="max-w-3xl text-sm text-[var(--studio-muted)]">{item.detail}</p>
+                            </div>
+                            <div className="shrink-0 self-start">
+                              <Badge tone="warning">
+                                {language === "fr" ? "Pré-requis à satisfaire" : "Prerequisites pending"}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  ) : null}
+                </>
+              ) : (
+                <Card>
+                  <CardHeader
+                    title={
+                      language === "fr"
+                        ? "Surfaces de décision"
+                        : "Decision surfaces"
+                    }
+                    description={
+                      language === "fr"
+                        ? "Les panneaux aval complets s’ouvrent après soumission de la version courante. Les prérequis ci-dessous reflètent le cycle réel."
+                        : "Full downstream panels open after the current version is submitted. The prerequisites below reflect the real lifecycle."
+                    }
+                  />
+                  <div className="divide-y divide-[var(--studio-border)] rounded-2xl border border-[var(--studio-border)]">
+                    {useCasePrerequisites.map((item) => (
+                      <div
+                        key={item.key}
+                        className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-start md:justify-between"
+                      >
+                        <div className="space-y-1">
+                          <p className="font-medium text-[var(--studio-foreground)]">{item.title}</p>
+                          <p className="max-w-3xl text-sm text-[var(--studio-muted)]">{item.detail}</p>
+                        </div>
+                        <div className="shrink-0 self-start">
+                          <Badge tone="warning">
+                            {language === "fr" ? "Pré-requis à satisfaire" : "Prerequisites pending"}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
             </>
           ) : null}
         </div>
@@ -844,11 +1033,9 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                 {auth.status === "authenticated" ? t.sessionActive : t.sessionInactive}
               </Badge>
               <p className="font-medium text-[var(--studio-foreground)]">
-                {auth.displayName ?? t.noIdentity}
+                {presentDevFixtureName(auth.displayName) ?? t.noIdentity}
               </p>
-              <p className="text-[var(--studio-muted)]">
-                {activeRoleLabel ?? t.common.none} · {sessionModeLabelFor(language)}
-              </p>
+              <p className="text-[var(--studio-muted)]">{activeRoleLabel ?? t.common.none}</p>
               {auth.status === "authenticated" ? (
                 <Button variant="secondary" onClick={() => void auth.signOut()}>
                   {t.signOut}
@@ -856,19 +1043,39 @@ export function StudioApp({ route }: { route: StudioRoute }) {
               ) : null}
             </div>
           </div>
-          <div className="mt-6">
-            <Stepper steps={steps} activeStep={route} />
+          <div className="mt-6 space-y-3">
+            <div className="lg:hidden">
+              <Button
+                variant="secondary"
+                aria-expanded={primaryNavOpen}
+                aria-controls="studio-primary-navigation"
+                onClick={() => setPrimaryNavOpen((current) => !current)}
+              >
+                {primaryNavOpen ? t.navigation.closeMenu : t.navigation.openMenu}
+              </Button>
+            </div>
+            <nav
+              id="studio-primary-navigation"
+              aria-label={t.navigation.primary}
+              className={cn(
+                "rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-3 lg:block",
+                primaryNavOpen ? "block" : "hidden",
+              )}
+            >
+              <div className="grid gap-2 lg:grid-cols-6">
+                {routeLinks.map((link) => (
+                  <NavLink
+                    key={link.id}
+                    href={link.href}
+                    label={link.label}
+                    active={link.id === route}
+                    onClick={() => setPrimaryNavOpen(false)}
+                  />
+                ))}
+              </div>
+            </nav>
           </div>
         </header>
-
-        <nav className="flex flex-wrap gap-3 text-sm">
-          <NavLink href={hrefFor("home", {})} label={t.navigation.home} />
-          <NavLink href={hrefFor("workspace", { workspaceId })} label={t.navigation.workspace} />
-          <NavLink href={hrefFor("program", { workspaceId, programId })} label={t.navigation.program} />
-          <NavLink href={hrefFor("use-case", { workspaceId, programId, useCaseId })} label={t.navigation.useCase} />
-          <NavLink href={hrefFor("portfolio", { workspaceId, programId })} label={t.navigation.portfolio} />
-          <NavLink href={hrefFor("members", { workspaceId })} label={t.navigation.members} />
-        </nav>
 
         <DesktopConnectivityBanner language={language} />
 
@@ -933,13 +1140,28 @@ export function StudioApp({ route }: { route: StudioRoute }) {
   );
 }
 
-function NavLink({ href, label }: { href: string; label: string }) {
+function NavLink({
+  href,
+  label,
+  active = false,
+  onClick,
+}: {
+  href: string;
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
   return (
     <Link
       className={cn(
-        "rounded-full border border-[var(--studio-border)] bg-[var(--studio-surface)] px-4 py-2 text-[var(--studio-foreground)] transition hover:border-[var(--studio-brand)] hover:text-[var(--studio-brand)]",
+        "inline-flex min-h-[44px] items-center justify-center rounded-lg border px-4 py-2 text-center text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-[var(--studio-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-surface)]",
+        active
+          ? "border-[var(--studio-brand)] bg-[var(--studio-surface)] text-[var(--studio-brand)] shadow-[var(--shadow-sm)]"
+          : "border-[var(--studio-border)] bg-[var(--studio-surface)] text-[var(--studio-foreground)] hover:border-[var(--studio-brand)] hover:text-[var(--studio-brand)]",
       )}
       href={href}
+      aria-current={active ? "page" : undefined}
+      onClick={onClick}
     >
       {label}
     </Link>

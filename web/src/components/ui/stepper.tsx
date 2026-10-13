@@ -15,6 +15,7 @@ export function Stepper({
           return (
             <li
               key={step.id}
+              aria-current={isActive ? "step" : undefined}
               className={cn(
                 "flex items-center gap-2 rounded-full px-3 py-2 text-sm",
                 isActive

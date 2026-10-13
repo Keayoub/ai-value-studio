@@ -7,6 +7,15 @@ export type DevIdentity = {
   role: WorkspaceRole;
 };
 
+const localizedSeededFixtureNames: Partial<Record<StudioLocale, Record<string, string>>> = {
+  fr: {
+    "Local Consultant": "Consultant local",
+    "Local Development Workspace": "Espace de développement local",
+    "Local Demo Workspace": "Espace de démonstration local",
+    "Seeded local development workspace.": "Espace de développement local préconfiguré.",
+  },
+};
+
 type StudioDevCopy = {
   sessionModeLabel: string;
   authBanner: string;
@@ -29,8 +38,8 @@ type StudioDevCopy = {
 
 const studioDevCopy: Record<StudioLocale, StudioDevCopy> = {
   fr: {
-    sessionModeLabel: "En-têtes de développement",
-    authBanner: "LOCAL DEVELOPMENT — AUTH DISABLED",
+    sessionModeLabel: "Session locale",
+    authBanner: "DÉVELOPPEMENT LOCAL — AUTH DÉSACTIVÉE",
     unauthenticatedDescription:
       "Sélectionnez une identité locale pour tester le vrai parcours applicatif connecté au backend.",
     auth: {
@@ -81,4 +90,15 @@ export function defaultDevIdentityFor(locale: StudioLocale): DevIdentity {
     displayName: defaults.displayName,
     role: defaults.role,
   };
+}
+
+export function localizeSeededDevFixtureName(
+  locale: StudioLocale,
+  value: string | null | undefined,
+): string | null | undefined {
+  if (!value) {
+    return value;
+  }
+
+  return localizedSeededFixtureNames[locale]?.[value] ?? value;
 }
