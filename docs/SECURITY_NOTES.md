@@ -49,11 +49,11 @@ Row-level security still needs to be tracked and enforced for **all business ten
 
 ## Current dev-only advisory status
 
-`npm audit --audit-level=high --omit=dev` is clean after the Next.js runtime upgrade. A remaining **dev-only** advisory still affects `eslint-config-next@16.3.8` through the chain `@next/eslint-plugin-next -> fast-glob -> micromatch -> braces`:
+`npm audit --audit-level=high --omit=dev` is clean after the Next.js runtime upgrade. A remaining **dev-only** advisory still affects `eslint-config-next@16.4.0` through the chain `@next/eslint-plugin-next -> fast-glob -> micromatch -> braces`:
 
 - Advisory: `GHSA-vfj7-8cjw-p6xm` (`braces`, high severity)
 - Scope: lint-time only, not shipped in the static export/runtime bundle
-- Constraint: npm currently resolves `eslint-config-next@16.3.8` to `braces@3.0.3`, and `npm audit fix --force` only offers an incompatible downgrade to `eslint-config-next@14.2.35`
+- Constraint: npm currently resolves `eslint-config-next@16.4.0` to `braces@3.0.3`, and `npm audit fix --force` only offers an incompatible downgrade to `eslint-config-next@14.2.35`
 
 We checked the safe override path before documenting this as unresolved:
 
@@ -62,3 +62,23 @@ We checked the safe override path before documenting this as unresolved:
 - `npm view braces version` currently reports `3.0.3`, so there is no published patched `braces` release to force via `overrides`.
 
 Until the upstream Next.js lint dependency chain ships a compatible fix on the 16.x line, keep CI enforcement on the runtime dependency audit (`--omit=dev`) and track the upstream fix before re-enabling a blocking full dev-dependency audit.
+
+## ESLint 10 trial blocker
+
+We also trialed `eslint@10.12.0` alongside `next@16.4.0` and `eslint-config-next@16.4.0`. The app still typechecks, lints, and builds, but the toolchain is not yet peer-clean:
+
+- `eslint-plugin-import@2.32.0` peers `eslint` only through `^9`
+- `eslint-plugin-jsx-a11y@6.10.2` peers `eslint` only through `^9`
+- `eslint-plugin-react@7.37.5` peers `eslint` only through `^9.7`
+
+`npm ci` completes only with peer override warnings, and `npm ls eslint eslint-plugin-import eslint-plugin-jsx-a11y eslint-plugin-react` exits with `ELSPROBLEMS`. Keep `eslint` on 9.x until the Next 16 lint dependency stack publishes ESLint 10-compatible peer ranges.
+
+## Dependabot #14 WeasyPrint deferral
+
+Dependabot update #14 changes only the `weasyprint` range, and that expansion remains deferred after measured PDF pagination differences between `66.0` and `70.0` on core deliverables.
+
+- Executive Brief stayed at 6 pages in both renders.
+- Pilot Charter changed from 7 pages on WeasyPrint 66.0 to 6 pages on WeasyPrint 70.0.
+- Both renders still embedded Inter and Source Serif 4, and both reports recorded `validation_errors: []`.
+
+Because this changes pagination for a core PDF output without any corresponding validation error, keep `weasyprint` pinned at `>=66,<67` until the layout shift is understood and accepted.
