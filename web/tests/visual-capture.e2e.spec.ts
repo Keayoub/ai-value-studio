@@ -226,6 +226,44 @@ async function expectMobileWizardFormOrdering(page: Page) {
   }).toBe(true);
 }
 
+async function expectMobilePrimaryNavigationDrawer(page: Page) {
+  await page.setViewportSize({ width: 375, height: 844 });
+
+  const trigger = page.getByRole("button", { name: /Ouvrir la navigation|Open navigation/ });
+  await expect(trigger).toBeVisible();
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("Enter");
+
+  const drawer = page.getByRole("dialog", { name: /Navigation principale|Primary navigation/ });
+  const closeButton = page.getByRole("button", {
+    name: /Fermer la navigation|Close navigation/,
+  });
+  const drawerNav = drawer.getByRole("navigation", {
+    name: /Navigation principale|Primary navigation/,
+  });
+  const currentRouteLink = drawerNav.getByRole("link", {
+    name: /Connexion et espaces|Sign-in and workspaces/,
+  });
+
+  await expect(drawer).toBeVisible();
+  await expect(closeButton).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(drawer).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(currentRouteLink).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByRole("dialog", { name: /Navigation principale|Primary navigation/ })).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+}
+
 test("captures eight seeded studio screens when opted in", async ({ page, request }) => {
   test.skip(!CAPTURE_DIR, "CAPTURE_DIR not set");
   test.setTimeout(900_000);
@@ -283,14 +321,16 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
   });
 
   await page.goto("/studio");
+  await expectMobilePrimaryNavigationDrawer(page);
   await capture(page, "01", "dev-identity", async () => {
     await expect(page.getByText(DEV_BANNER)).toBeVisible();
     await expect(page.getByRole("heading", { name: /Piloter les espaces/i })).toBeVisible();
     await expect(page.getByText(LOCAL_CONSULTANT_NAME, { exact: true }).last()).toBeVisible();
     await expect(page.getByText(localizedWorkspaceName, { exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Parcours studio" })).toHaveCount(0);
-    await expect(page.locator("nav[aria-label='Navigation principale']")).toHaveCount(1);
-    await expect(page.locator("[aria-current='page']")).toHaveCount(1);
+    const desktopNavigation = (page.viewportSize()?.width ?? 0) >= 1024;
+    await expect(page.locator("nav[aria-label='Navigation principale']:visible")).toHaveCount(desktopNavigation ? 1 : 0);
+    await expect(page.locator("[aria-current='page']:visible")).toHaveCount(desktopNavigation ? 1 : 0);
     await expect(page.getByText("Session locale")).toHaveCount(0);
     await expect(page.getByText("Local Consultant", { exact: true })).toHaveCount(0);
     await expect(page.getByText(seededWorkspaceName, { exact: true })).toHaveCount(0);

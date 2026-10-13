@@ -167,6 +167,8 @@ export function StudioApp({ route }: { route: StudioRoute }) {
   const [loading, setLoading] = useState(true);
   const [primaryNavOpen, setPrimaryNavOpen] = useState(false);
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
+  const primaryNavTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const primaryNavCloseRef = useRef<HTMLButtonElement>(null);
   const [workspaceForm, setWorkspaceForm] = useState({
     name: "",
     description: "",
@@ -214,6 +216,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
     { id: "portfolio", href: hrefFor("portfolio", { workspaceId, programId }), label: t.navigation.portfolio },
     { id: "members", href: hrefFor("members", { workspaceId }), label: t.navigation.members },
   ] satisfies Array<{ id: StudioRoute; href: string; label: string }>;
+  const activeRouteLink = routeLinks.find((link) => link.id === route) ?? routeLinks[0];
   const decisionSurfaceOpen = selectedUseCase ? hasDecisionSurfaceData(selectedUseCase) : false;
   const reviewSurfaceOpen = selectedUseCase
     ? decisionSurfaceOpen || hasPreviousAssessmentCycle(selectedUseCase)
@@ -288,6 +291,20 @@ export function StudioApp({ route }: { route: StudioRoute }) {
       active = false;
     };
   }, [api, auth.me, auth.ready, auth.status, programId, t, toast, workspaceId]);
+
+  useEffect(() => {
+    const desktopBreakpoint = window.matchMedia("(min-width: 1024px)");
+    const handleDesktopChange = (event: MediaQueryListEvent) => {
+      if (event.matches) {
+        setPrimaryNavOpen(false);
+      }
+    };
+
+    desktopBreakpoint.addEventListener("change", handleDesktopChange);
+    return () => {
+      desktopBreakpoint.removeEventListener("change", handleDesktopChange);
+    };
+  }, []);
 
   async function handleCreateWorkspace() {
     const created = await api.createWorkspace(workspaceForm);
@@ -1045,22 +1062,31 @@ export function StudioApp({ route }: { route: StudioRoute }) {
           </div>
           <div className="mt-6 space-y-3">
             <div className="lg:hidden">
-              <Button
-                variant="secondary"
-                aria-expanded={primaryNavOpen}
-                aria-controls="studio-primary-navigation"
-                onClick={() => setPrimaryNavOpen((current) => !current)}
-              >
-                {primaryNavOpen ? t.navigation.closeMenu : t.navigation.openMenu}
-              </Button>
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--studio-muted)]">
+                    {t.navigation.primary}
+                  </p>
+                  <p className="truncate text-sm font-medium text-[var(--studio-foreground)]">
+                    {activeRouteLink.label}
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  aria-expanded={primaryNavOpen}
+                  aria-controls="studio-mobile-primary-navigation"
+                  onClick={(event) => {
+                    primaryNavTriggerRef.current = event.currentTarget;
+                    setPrimaryNavOpen(true);
+                  }}
+                >
+                  {t.navigation.openMenu}
+                </Button>
+              </div>
             </div>
             <nav
-              id="studio-primary-navigation"
               aria-label={t.navigation.primary}
-              className={cn(
-                "rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-3 lg:block",
-                primaryNavOpen ? "block" : "hidden",
-              )}
+              className="hidden rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-3 lg:block"
             >
               <div className="grid gap-2 lg:grid-cols-6">
                 {routeLinks.map((link) => (
@@ -1068,8 +1094,7 @@ export function StudioApp({ route }: { route: StudioRoute }) {
                     key={link.id}
                     href={link.href}
                     label={link.label}
-                    active={link.id === route}
-                    onClick={() => setPrimaryNavOpen(false)}
+                    active={!primaryNavOpen && link.id === route}
                   />
                 ))}
               </div>
@@ -1081,6 +1106,54 @@ export function StudioApp({ route }: { route: StudioRoute }) {
 
         {loading ? <StudioLoadingState /> : content}
       </div>
+
+      <Dialog
+        open={primaryNavOpen}
+        title={t.navigation.primary}
+        onClose={() => setPrimaryNavOpen(false)}
+        hideDefaultClose
+        className="fixed inset-y-0 right-0 left-auto m-0 h-full max-h-none w-full max-w-sm overflow-hidden rounded-none border-y-0 border-r-0 border-l border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--shadow-lg)] backdrop:bg-[rgb(16_42_67_/_0.45)] lg:hidden"
+        contentClassName="flex h-full flex-col gap-5 p-5"
+        titleClassName="sr-only"
+        initialFocusRef={primaryNavCloseRef}
+        restoreFocusRef={primaryNavTriggerRef}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--studio-border)] pb-4">
+          <div className="min-w-0 space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--studio-muted)]">
+              {t.navigation.primary}
+            </p>
+            <p className="truncate text-sm font-medium text-[var(--studio-foreground)]">
+              {activeRouteLink.label}
+            </p>
+          </div>
+          <button
+            ref={primaryNavCloseRef}
+            type="button"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[var(--studio-surface-subtle)] px-4 py-2 text-sm font-semibold text-[var(--studio-foreground)] outline-none transition hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-surface)]"
+            onClick={() => setPrimaryNavOpen(false)}
+          >
+            {t.navigation.closeMenu}
+          </button>
+        </div>
+        <nav
+          id="studio-mobile-primary-navigation"
+          aria-label={t.navigation.primary}
+          className="flex-1 overflow-y-auto"
+        >
+          <div className="grid gap-2">
+            {routeLinks.map((link) => (
+              <NavLink
+                key={`mobile-${link.id}`}
+                href={link.href}
+                label={link.label}
+                active={primaryNavOpen && link.id === route}
+                onClick={() => setPrimaryNavOpen(false)}
+              />
+            ))}
+          </div>
+        </nav>
+      </Dialog>
 
       <Dialog
         open={workspaceDialogOpen}
