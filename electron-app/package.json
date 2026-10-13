@@ -30,7 +30,7 @@
     "electron-squirrel-startup": "^1.0.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.36.0",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.0",
     "@types/node": "^24.6.0",
     "electron": "^44.7.0",
