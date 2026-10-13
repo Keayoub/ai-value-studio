@@ -8,7 +8,12 @@ from app.api.v1.errors import AppError
 from app.audit.models import AuditEvent
 from app.db.models.workspace import MembershipStatus
 from app.db.session import get_engine
-from app.security.auth import AuthContext, _get_authorization_token, _validate_entra_token
+from app.security.auth import (
+    INVALID_ACCESS_TOKEN_DETAIL,
+    AuthContext,
+    _get_authorization_token,
+    _validate_entra_token,
+)
 from app.security.dev_auth import (
     contains_dev_headers,
     is_loopback_request,
@@ -95,8 +100,10 @@ def test_validate_entra_token_rejects_malformed_or_missing_kid(
 ) -> None:
     configure_entra_env(monkeypatch, sqlite_db_url)
 
-    with pytest.raises(AppError, match="Malformed JWT header"):
+    with pytest.raises(AppError) as malformed_exc:
         _validate_entra_token("not-a-jwt")
+    assert malformed_exc.value.status_code == 401
+    assert malformed_exc.value.detail == INVALID_ACCESS_TOKEN_DETAIL
 
     token_without_kid = jwt.encode(
         {
@@ -111,8 +118,10 @@ def test_validate_entra_token_rejects_malformed_or_missing_kid(
         algorithm="HS256",
         headers={},
     )
-    with pytest.raises(AppError, match="JWT kid is required"):
+    with pytest.raises(AppError) as missing_kid_exc:
         _validate_entra_token(token_without_kid)
+    assert missing_kid_exc.value.status_code == 401
+    assert missing_kid_exc.value.detail == INVALID_ACCESS_TOKEN_DETAIL
 
 
 def test_cursor_helpers_and_permission_guard() -> None:

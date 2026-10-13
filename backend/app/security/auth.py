@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from functools import lru_cache
+from json import JSONDecodeError
 from typing import Annotated
 
 import jwt
@@ -11,11 +12,21 @@ from app.config import AuthMode, get_settings
 from app.db.models.identity import IdentitySubject
 from app.db.session import get_session, set_postgres_actor
 from app.security.dev_auth import build_dev_identity, contains_dev_headers, require_loopback_request
-from app.security.entra import JwksCache
+from app.security.entra import JwksCache, JwksFetchError
 from app.security.roles import ProductRole, parse_product_roles
 from fastapi import Depends, Request
-from jwt import InvalidTokenError
+from jwt import InvalidKeyError, InvalidTokenError
 from sqlmodel import Session, select
+
+INVALID_ACCESS_TOKEN_DETAIL = "Invalid access token."  # noqa: S105
+AUTHENTICATION_UNAVAILABLE_DETAIL = "Authentication service temporarily unavailable."
+JWKS_UNAVAILABLE_EXCEPTIONS = (
+    JwksFetchError,
+    JSONDecodeError,
+    OSError,
+    TimeoutError,
+    UnicodeDecodeError,
+)
 
 
 @dataclass(slots=True)
@@ -62,29 +73,27 @@ def _validate_entra_token(token: str) -> AuthContext:
     try:
         header = jwt.get_unverified_header(token)
     except InvalidTokenError as exc:
-        raise AppError(
-            status_code=401,
-            title="Unauthorized",
-            detail="Malformed JWT header.",
-        ) from exc
+        raise _invalid_access_token_error() from exc
 
     kid = header.get("kid")
     alg = header.get("alg")
     if not kid:
-        raise AppError(status_code=401, title="Unauthorized", detail="JWT kid is required.")
+        raise _invalid_access_token_error()
     if alg != "RS256":
-        raise AppError(
-            status_code=401,
-            title="Unauthorized",
-            detail="Only RS256 access tokens are accepted.",
-        )
+        raise _invalid_access_token_error()
 
-    jwks_cache = _get_jwks_cache(settings.resolved_jwks_url, settings.entra_jwks_cache_ttl)
-    jwk = jwks_cache.get_key(kid)
+    try:
+        jwks_cache = _get_jwks_cache(settings.resolved_jwks_url, settings.entra_jwks_cache_ttl)
+        jwk = jwks_cache.get_key(kid)
+    except JWKS_UNAVAILABLE_EXCEPTIONS as exc:
+        raise _authentication_unavailable_error() from exc
     if jwk is None:
-        raise AppError(status_code=401, title="Unauthorized", detail="Unknown signing key.")
+        raise _invalid_access_token_error()
 
-    public_key = jwt.algorithms.RSAAlgorithm.from_jwk(jwk)
+    try:
+        public_key = jwt.algorithms.RSAAlgorithm.from_jwk(jwk)
+    except (InvalidKeyError, TypeError, ValueError) as exc:
+        raise _invalid_access_token_error() from exc
     try:
         payload = jwt.decode(
             token,
@@ -95,16 +104,12 @@ def _validate_entra_token(token: str) -> AuthContext:
             options={"require": ["exp", "nbf", "iss", "aud", "tid", "oid", "scp"]},
         )
     except InvalidTokenError as exc:
-        raise AppError(
-            status_code=401,
-            title="Unauthorized",
-            detail="Token validation failed.",
-        ) from exc
+        raise _invalid_access_token_error() from exc
 
     if payload.get("idtyp") == "id" or "nonce" in payload:
-        raise AppError(status_code=401, title="Unauthorized", detail="ID tokens are not accepted.")
+        raise _invalid_access_token_error()
     if payload.get("tid") != settings.entra_tenant_id:
-        raise AppError(status_code=401, title="Unauthorized", detail="Token tenant is not trusted.")
+        raise _invalid_access_token_error()
 
     scopes = {scope for scope in str(payload.get("scp", "")).split(" ") if scope}
     if settings.entra_required_scope not in scopes:
@@ -133,6 +138,18 @@ def _validate_entra_token(token: str) -> AuthContext:
         display_name=payload.get("name"),
         email=payload.get("preferred_username"),
         token_roles=roles,
+    )
+
+
+def _invalid_access_token_error() -> AppError:
+    return AppError(status_code=401, title="Unauthorized", detail=INVALID_ACCESS_TOKEN_DETAIL)
+
+
+def _authentication_unavailable_error() -> AppError:
+    return AppError(
+        status_code=503,
+        title="Service Unavailable",
+        detail=AUTHENTICATION_UNAVAILABLE_DETAIL,
     )
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import unicodedata
 import uuid
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -58,6 +59,105 @@ FIELD_LENGTH_LIMITS = {
     "medium": 1200,
     "long": 2000,
 }
+PROMPT_REJECTION_DETAIL = (
+    "L’assistance IA ne peut pas traiter ce contenu. Reformulez avec un résumé métier factuel."
+)
+ZERO_WIDTH_PATTERN = re.compile(r"[\u200b-\u200d\u2060\ufeff]")
+WHITESPACE_PATTERN = re.compile(r"\s+")
+NON_ALNUM_PATTERN = re.compile(r"[\W_]+", re.UNICODE)
+PROMPT_SAFETY_PATTERNS: tuple[tuple[str, tuple[re.Pattern[str], ...], tuple[str, ...]], ...] = (
+    (
+        "instruction-override",
+        (
+            re.compile(
+                r"\b(?:ignore|disregard|forget|bypass|override)\b.{0,48}\b"
+                r"(?:instructions?|rules?|guardrails?|system|developer|prompt)s?\b"
+            ),
+            re.compile(
+                r"\b(?:ignore|ignorer|oublie|oublier|contourne|contourner|bypass|outrepasse)\b"
+                r".{0,64}\b(?:instructions?|consignes?|r[eè]gles?|garde[- ]fous?|"
+                r"prompts?|messages?\s+(?:syst[eè]me|developpeur|d[eé]veloppeur))\b"
+            ),
+        ),
+        (
+            "ignorepreviousinstructions",
+            "ignoreallinstructions",
+            "disregardpreviousinstructions",
+            "forgetpreviousinstructions",
+            "ignorelesinstructionsprecedentes",
+            "oublielesinstructionsprecedentes",
+            "ignoretouteslesinstructions",
+            "contournelesconsignes",
+        ),
+    ),
+    (
+        "role-system-prompt",
+        (
+            re.compile(
+                r"\b(?:system prompt|developer instructions?|developer message|"
+                r"hidden instructions?|internal instructions?)\b"
+            ),
+            re.compile(
+                r"\b(?:prompts?\s+syst[eè]me|messages?\s+syst[eè]me|messages?\s+"
+                r"(?:developpeur|d[eé]veloppeur)|instructions?\s+(?:cach[eé]es|internes))\b"
+            ),
+            re.compile(
+                r"\b(?:act as|behave as|you are now|pretend to be)\b.{0,32}\b"
+                r"(?:system|developer|administrator|admin|assistant)\b"
+            ),
+            re.compile(
+                r"\b(?:agis comme|comporte[- ]toi comme|tu es maintenant|fais[- ]toi passer pour)\b"
+                r".{0,40}\b(?:syst[eè]me|developpeur|d[eé]veloppeur|administrateur|assistant)\b"
+            ),
+        ),
+        (
+            "systemprompt",
+            "developerinstructions",
+            "developermessage",
+            "hiddeninstructions",
+            "promptsysteme",
+            "messagesysteme",
+            "messagedeveloppeur",
+            "actasdeveloper",
+            "youarenowsystem",
+            "agiscommesysteme",
+        ),
+    ),
+    (
+        "secret-exfiltration",
+        (
+            re.compile(
+                r"\b(?:show|reveal|print|dump|extract|exfiltrate|leak|expose|return)\b.{0,56}\b"
+                r"(?:api[_ -]?keys?|secrets?|passwords?|tokens?|credentials?|headers?|"
+                r"environment variables?|env vars?|\.env|system prompt)\b"
+            ),
+            re.compile(
+                r"\b(?:montre|r[eé]v[eè]le|affiche|imprime|extrais|exfiltre|divulgue|"
+                r"retourne)\b.{0,72}\b(?:cl[eé]s?\s+api|secrets?|mots?\s+de\s+passe|jetons?|"
+                r"identifiants?|en[- ]t[eê]tes?|variables?\s+d['’]environnement|\.env|"
+                r"prompt\s+syst[eè]me)\b"
+            ),
+        ),
+        (
+            "showapikey",
+            "revealapikey",
+            "dumpsecrets",
+            "exfiltratesecrets",
+            "showenvironmentvariables",
+            "returnenvvars",
+            "revelelessecrets",
+            "montrelessecrets",
+            "montrelesvariablesdenvironnement",
+            "exfiltrelessecrets",
+        ),
+    ),
+)
+
+
+class RejectedPromptContentError(AppError):
+    def __init__(self, *, category: str, detail: str) -> None:
+        self.category = category
+        super().__init__(status_code=422, title="Validation Error", detail=detail)
 
 
 def llm_provider_is_configured(settings: Settings | None = None) -> bool:
@@ -105,11 +205,15 @@ class LlmAssistanceService:
             assessment_id=assessment_id,
             expected_use_case_id=expected_use_case_id,
         )
-        prompt_context = self._build_prompt_context(
-            bundle=bundle,
-            program=program,
-            use_case=use_case,
-        )
+        try:
+            prompt_context = self._build_prompt_context(
+                bundle=bundle,
+                program=program,
+                use_case=use_case,
+            )
+        except RejectedPromptContentError as exc:
+            self._audit_rejected_prompt(bundle=bundle, category=exc.category)
+            raise
         request = KickstartPromptRequest(
             template_name=PROMPT_TEMPLATE_NAME,
             system_prompt=KICKSTART_SYSTEM_PROMPT,
@@ -468,6 +572,16 @@ class LlmAssistanceService:
             },
         )
 
+    def _audit_rejected_prompt(self, *, bundle: AssessmentBundle, category: str) -> None:
+        self.audit.append(
+            context=self.context,
+            action="assessment.kickstart_generated",
+            entity_type="assessment_version",
+            entity_id=str(bundle.assessment.id),
+            request_id=self.request_id,
+            metadata={"outcome": "rejected", "rejection_category": category},
+        )
+
     def _log_provider_failure(self, *, assessment_id: str, code: str) -> None:
         logger.error(
             "Kickstart provider request failed",
@@ -726,11 +840,32 @@ def _reject_sensitive_content(values: dict[str, Any]) -> None:
 def _assert_safe_text(value: str) -> None:
     for pattern in PII_SECRET_PATTERNS:
         if pattern.search(value):
-            raise AppError(
-                status_code=422,
-                title="Validation Error",
+            raise RejectedPromptContentError(
+                category="sensitive-data",
                 detail=(
                     "L’assistance IA refuse les résumés contenant des secrets ou des données "
                     "personnelles. Remplacez-les par un résumé métier non sensible."
                 ),
             )
+
+    category = _classify_prompt_safety_risk(value)
+    if category is not None:
+        raise RejectedPromptContentError(category=category, detail=PROMPT_REJECTION_DETAIL)
+
+
+def _classify_prompt_safety_risk(value: str) -> str | None:
+    normalized = _normalize_prompt_text(value)
+    compact = NON_ALNUM_PATTERN.sub("", normalized)
+    for category, regexes, compact_needles in PROMPT_SAFETY_PATTERNS:
+        if any(regex.search(normalized) for regex in regexes):
+            return category
+        if any(needle in compact for needle in compact_needles):
+            return category
+    return None
+
+
+def _normalize_prompt_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value)
+    normalized = ZERO_WIDTH_PATTERN.sub("", normalized)
+    normalized = WHITESPACE_PATTERN.sub(" ", normalized)
+    return normalized.casefold().strip()

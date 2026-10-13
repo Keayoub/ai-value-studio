@@ -3,15 +3,18 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
+from json import JSONDecodeError
 from typing import Any
+from urllib.error import URLError
 
 import httpx
 import jwt
 import pytest
 from app.config import get_settings
 from app.main import create_app
+from app.security.auth import AUTHENTICATION_UNAVAILABLE_DETAIL, INVALID_ACCESS_TOKEN_DETAIL
 from app.security.dev_auth import build_dev_identity
-from app.security.entra import JwksCache
+from app.security.entra import JwksCache, JwksFetchError
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
@@ -79,13 +82,16 @@ def _make_entra_client(
     monkeypatch: pytest.MonkeyPatch,
     sqlite_db_url: str,
     rsa_material: dict[str, Any],
+    *,
+    patch_cache: bool = True,
 ) -> TestClient:
     configure_entra_env(monkeypatch, sqlite_db_url)
     run_upgrade(sqlite_db_url)
-    monkeypatch.setattr(
-        "app.security.auth._get_jwks_cache",
-        lambda _url, _ttl: DummyJwksCache(rsa_material["public_jwk"]),
-    )
+    if patch_cache:
+        monkeypatch.setattr(
+            "app.security.auth._get_jwks_cache",
+            lambda _url, _ttl: DummyJwksCache(rsa_material["public_jwk"]),
+        )
     return TestClient(create_app())
 
 
@@ -110,6 +116,26 @@ def test_jwks_cache_respects_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert cache.get_key("abc") == {"kid": "abc", "kty": "RSA"}
     assert cache.get_key("abc") == {"kid": "abc", "kty": "RSA"}
+    assert calls["count"] == 1
+
+
+def test_jwks_cache_throttles_repeated_fetch_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"count": 0}
+
+    def fake_urlopen(url: str, timeout: int = 5) -> BytesIO:
+        assert url == "https://unit.test/jwks"
+        assert timeout == 5
+        calls["count"] += 1
+        raise URLError("offline")
+
+    monkeypatch.setattr("app.security.entra.urlopen", fake_urlopen)
+    cache = JwksCache(jwks_url="https://unit.test/jwks", ttl_seconds=60, failure_retry_seconds=30)
+
+    with pytest.raises(JwksFetchError):
+        cache.get_key("abc")
+    with pytest.raises(JwksFetchError):
+        cache.get_key("abc")
+
     assert calls["count"] == 1
 
 
@@ -151,6 +177,162 @@ def test_entra_token_validation_matrix(
         response = client.get("/api/v1/me", headers={"Authorization": "Bearer " + token})
 
     assert response.status_code == expected_status
+
+
+@pytest.mark.parametrize(
+    ("label", "urlopen_factory"),
+    [
+        ("url-error", lambda: URLError("temporary dns failure")),
+        ("timeout", lambda: TimeoutError("timed out")),
+        ("malformed-jwks", lambda: BytesIO(b'{"keys":"unexpected"}')),
+    ],
+)
+def test_entra_auth_returns_sanitized_503_for_jwks_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    sqlite_db_url: str,
+    rsa_material: dict[str, Any],
+    label: str,
+    urlopen_factory,
+) -> None:
+    class FakeResponse(BytesIO):
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            self.close()
+
+    def fake_urlopen(url: str, timeout: int = 5):
+        assert url == "https://unit.test/jwks"
+        assert timeout == 5
+        result = urlopen_factory()
+        if isinstance(result, Exception):
+            raise result
+        return FakeResponse(result.read())
+
+    with _make_entra_client(monkeypatch, sqlite_db_url, rsa_material, patch_cache=False) as client:
+        token = build_access_token(
+            private_key=rsa_material["private_key"],
+            iss="https://login.microsoftonline.com/tenant-123/v2.0",
+            aud="api://client-123",
+            tid="tenant-123",
+        )
+        monkeypatch.setattr("app.security.entra.urlopen", fake_urlopen)
+        response = client.get("/api/v1/me", headers={"Authorization": "Bearer " + token})
+
+    assert response.status_code == 503, label
+    assert response.json()["title"] == "Service Unavailable"
+    assert response.json()["detail"] == AUTHENTICATION_UNAVAILABLE_DETAIL
+    assert "jwks" not in response.text.casefold()
+    assert "unit.test" not in response.text
+
+
+@pytest.mark.parametrize(
+    ("label", "exception"),
+    [
+        ("url-error", URLError("temporary dns failure")),
+        ("timeout", TimeoutError("timed out")),
+        ("json-decode", JSONDecodeError("bad json", doc="{", pos=0)),
+    ],
+)
+def test_entra_auth_returns_sanitized_503_when_cache_accessor_raises_directly(
+    monkeypatch: pytest.MonkeyPatch,
+    sqlite_db_url: str,
+    rsa_material: dict[str, Any],
+    label: str,
+    exception: Exception,
+) -> None:
+    class ExplodingJwksCache:
+        def get_key(self, kid: str) -> dict[str, Any] | None:
+            assert kid == "test-kid"
+            raise exception
+
+    monkeypatch.setattr(
+        "app.security.auth._get_jwks_cache",
+        lambda _url, _ttl: ExplodingJwksCache(),
+    )
+
+    with _make_entra_client(monkeypatch, sqlite_db_url, rsa_material, patch_cache=False) as client:
+        token = build_access_token(
+            private_key=rsa_material["private_key"],
+            iss="https://login.microsoftonline.com/tenant-123/v2.0",
+            aud="api://client-123",
+            tid="tenant-123",
+        )
+        response = client.get("/api/v1/me", headers={"Authorization": "Bearer " + token})
+
+    assert response.status_code == 503, label
+    assert response.json()["title"] == "Service Unavailable"
+    assert response.json()["detail"] == AUTHENTICATION_UNAVAILABLE_DETAIL
+    assert "dns" not in response.text.casefold()
+    assert "timed out" not in response.text.casefold()
+    assert "json" not in response.text.casefold()
+
+
+def test_entra_auth_returns_sanitized_401_for_unknown_kid(
+    monkeypatch: pytest.MonkeyPatch,
+    sqlite_db_url: str,
+    rsa_material: dict[str, Any],
+) -> None:
+    class FakeResponse(BytesIO):
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            self.close()
+
+    def fake_urlopen(url: str, timeout: int = 5) -> FakeResponse:
+        assert url == "https://unit.test/jwks"
+        assert timeout == 5
+        payload = {"keys": [{"kid": "other-kid", "kty": "RSA"}]}
+        return FakeResponse(json.dumps(payload).encode("utf-8"))
+
+    with _make_entra_client(monkeypatch, sqlite_db_url, rsa_material, patch_cache=False) as client:
+        token = build_access_token(
+            private_key=rsa_material["private_key"],
+            iss="https://login.microsoftonline.com/tenant-123/v2.0",
+            aud="api://client-123",
+            tid="tenant-123",
+        )
+        monkeypatch.setattr("app.security.entra.urlopen", fake_urlopen)
+        response = client.get("/api/v1/me", headers={"Authorization": "Bearer " + token})
+
+    assert response.status_code == 401
+    assert response.json()["title"] == "Unauthorized"
+    assert response.json()["detail"] == INVALID_ACCESS_TOKEN_DETAIL
+    assert "kid" not in response.text.casefold()
+
+
+def test_entra_auth_returns_sanitized_401_for_malformed_signing_key(
+    monkeypatch: pytest.MonkeyPatch,
+    sqlite_db_url: str,
+    rsa_material: dict[str, Any],
+) -> None:
+    class FakeResponse(BytesIO):
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            self.close()
+
+    def fake_urlopen(url: str, timeout: int = 5) -> FakeResponse:
+        assert url == "https://unit.test/jwks"
+        assert timeout == 5
+        payload = {"keys": [{"kid": "test-kid", "kty": "RSA", "n": "bad", "e": "AQAB"}]}
+        return FakeResponse(json.dumps(payload).encode("utf-8"))
+
+    with _make_entra_client(monkeypatch, sqlite_db_url, rsa_material, patch_cache=False) as client:
+        token = build_access_token(
+            private_key=rsa_material["private_key"],
+            iss="https://login.microsoftonline.com/tenant-123/v2.0",
+            aud="api://client-123",
+            tid="tenant-123",
+        )
+        monkeypatch.setattr("app.security.entra.urlopen", fake_urlopen)
+        response = client.get("/api/v1/me", headers={"Authorization": "Bearer " + token})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == INVALID_ACCESS_TOKEN_DETAIL
+    assert "rsa" not in response.text.casefold()
 
 
 def test_entra_mode_rejects_dev_headers(

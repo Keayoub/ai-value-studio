@@ -53,6 +53,11 @@ def _is_loopback_origin(origin: str) -> bool:
     return parsed.hostname in {"localhost", "127.0.0.1"}
 
 
+def _is_https_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return parsed.scheme == "https" and bool(parsed.netloc)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=None,
@@ -105,6 +110,8 @@ class Settings(BaseSettings):
     def validate_runtime_rules(self) -> Settings:
         if self.entra_jwks_cache_ttl < 1:
             raise ValueError("ENTRA_JWKS_CACHE_TTL must be greater than zero.")
+        if self.entra_jwks_url and not _is_https_url(self.entra_jwks_url):
+            raise ValueError("ENTRA_JWKS_URL must use HTTPS.")
         if any("*" in origin for origin in self.cors_allowed_origins):
             raise ValueError(
                 "CORS_ALLOWED_ORIGINS must contain exact origins; wildcard '*' is not allowed."

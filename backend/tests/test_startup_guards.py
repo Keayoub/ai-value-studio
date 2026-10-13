@@ -48,6 +48,20 @@ def test_entra_mode_requires_complete_configuration(
         create_app()
 
 
+@pytest.mark.parametrize("jwks_url", ["http://unit.test/jwks", "ftp://unit.test/jwks"])
+@pytest.mark.parametrize("configure_env", [configure_dev_env, configure_entra_env])
+def test_all_auth_modes_require_https_jwks_url(
+    monkeypatch: pytest.MonkeyPatch,
+    sqlite_db_url: str,
+    configure_env,
+    jwks_url: str,
+) -> None:
+    configure_env(monkeypatch, sqlite_db_url, ENTRA_JWKS_URL=jwks_url)
+
+    with pytest.raises(ValidationError, match="ENTRA_JWKS_URL must use HTTPS"):
+        create_app()
+
+
 @pytest.mark.parametrize("app_env", ["local", "production"])
 def test_fake_llm_provider_is_refused_outside_test_env(
     monkeypatch: pytest.MonkeyPatch,
