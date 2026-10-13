@@ -2,21 +2,95 @@
   "name": "electron-app",
   "productName": "AI Value Studio Desktop",
   "version": "1.0.0",
-  "description": "Electron shell for the exported AI Value Studio wizard",
-  "main": "src/index.js",
+  "description": "Production Electron desktop shell for AI Value Studio",
+  "main": "dist/main.js",
   "scripts": {
-    "prepare-renderer": "node ./scripts/sync-renderer.js",
-    "start": "npm run prepare-renderer && electron .",
-    "package": "npm run prepare-renderer",
-    "lint": "node --check src/index.js"
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true}); require('node:fs').rmSync('release',{recursive:true,force:true});\"",
+    "check:web-build": "node ./scripts/check-web-build.mjs",
+    "build": "npm run check:web-build && tsc -p tsconfig.build.json",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test:unit": "tsx --test tests/unit/*.test.ts scripts/*.test.mjs",
+    "pack": "npm run build && electron-builder --dir --linux",
+    "package:release": "node ./scripts/package-release.mjs",
+    "smoke:runner": "playwright test --config ./playwright.config.ts tests/smoke/desktop.spec.ts",
+    "test:smoke": "node ./scripts/run-smoke.mjs"
   },
-  "keywords": [],
+  "keywords": [
+    "electron",
+    "desktop",
+    "msal",
+    "security"
+  ],
   "author": "kay",
   "license": "MIT",
   "dependencies": {
+    "@azure/msal-node": "^3.8.0",
     "electron-squirrel-startup": "^1.0.1"
   },
   "devDependencies": {
-    "electron": "^44.7.0"
+    "@eslint/js": "^9.36.0",
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^24.6.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.36.0",
+    "globals": "^16.4.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.44.0"
+  },
+  "build": {
+    "appId": "com.tifinia.aivaluestudio.desktop",
+    "productName": "AI Value Studio Desktop",
+    "asar": true,
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/out",
+        "to": "renderer",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "extraFiles": [
+      {
+        "from": "assets/desktop-public.template.json",
+        "to": "desktop-public.template.json"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "category": "Office",
+      "icon": "assets/icon.png"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-${version}-setup.${ext}"
+    }
   }
 }
