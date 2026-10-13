@@ -1,4 +1,4 @@
-# TIFINIA AI Value Studio
+# AI Value Studio
 
 ## De l'idée IA au cas d'usage finançable, gouverné et activable
 
