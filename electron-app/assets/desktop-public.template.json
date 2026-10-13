@@ -1,0 +1,9 @@
+{
+  "authMode": "entra",
+  "apiBaseUrl": "https://api.example.com/api/v1",
+  "entra": {
+    "clientId": "00000000-0000-0000-0000-000000000000",
+    "tenantId": "common",
+    "scope": "api://avs-api/access_as_user"
+  }
+}
