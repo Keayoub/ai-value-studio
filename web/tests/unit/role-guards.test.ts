@@ -1,8 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { canAccessWorkspace, getViewerFlags, resolveVisibleProgram, resolveVisibleUseCase } from "../../src/features/auth/guards";
-import type { MeResponse, Program, UseCase } from "../../src/features/api/types";
+import {
+  canAccessWorkspace,
+  getViewerFlags,
+  resolveVisibleProgram,
+  resolveVisibleUseCase,
+  workspaceDisplayLanguage,
+} from "../../src/features/auth/guards";
+import type { MeResponse, Program, UseCase, WorkspaceSummary } from "../../src/features/api/types";
 
 const me: MeResponse = {
   subject: "dev:consultant",
@@ -84,4 +90,42 @@ test("visible entity resolvers return null for missing ids", () => {
   assert.equal(resolveVisibleProgram(programs, "program-b"), null);
   assert.equal(resolveVisibleUseCase(useCases, "use-case-a")?.title, "Use Case A");
   assert.equal(resolveVisibleUseCase(useCases, "use-case-b"), null);
+});
+
+test("workspace display language stays French-first until a workspace language is loaded", () => {
+  assert.equal(workspaceDisplayLanguage(null), "fr");
+
+  const frenchWorkspace: WorkspaceSummary = {
+    id: "workspace-fr",
+    name: "Espace FR",
+    sector: null,
+    country_region: null,
+    size_band: null,
+    description: null,
+    default_language: "fr-CA",
+    branding_json: null,
+    confidentiality_policy: "internal-only",
+    status: "active",
+    ai_assistance_enabled: false,
+    ai_assistance_available: false,
+    ai_assistance_consent_at: null,
+    ai_assistance_consent_by_subject_id: null,
+    ai_assistance_data_processing_note: null,
+    created_by_subject_id: "subject-a",
+    created_at: "",
+    updated_at: "",
+    my_role: "WorkspaceAdmin",
+    my_membership_status: "active",
+  };
+
+  assert.equal(workspaceDisplayLanguage(frenchWorkspace), "fr");
+
+  const englishWorkspace: WorkspaceSummary = {
+    ...frenchWorkspace,
+    id: "workspace-en",
+    name: "Workspace EN",
+    default_language: "en-US",
+  };
+
+  assert.equal(workspaceDisplayLanguage(englishWorkspace), "en");
 });
