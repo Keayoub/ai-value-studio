@@ -37,6 +37,7 @@ export type WizardCopy = {
   noValuePreview: string;
   noData: string;
   editStep: string;
+  editAnswer: string;
   yes: string;
   no: string;
   currentStep: string;
@@ -82,6 +83,8 @@ export type WizardCopy = {
   chooseOption: string;
   aiAssisted: string;
   currencySuffix: string;
+  validationSummaryTitle: string;
+  validationSummaryDescription: string;
 };
 
 export const wizardCopy: Record<Locale, WizardCopy> = {
@@ -126,6 +129,7 @@ export const wizardCopy: Record<Locale, WizardCopy> = {
     noValuePreview: "Renseignez les entrées de valeur pour calculer l’aperçu déterministe.",
     noData: "Aucune donnée",
     editStep: "Modifier l’étape",
+    editAnswer: "Modifier",
     yes: "Oui",
     no: "Non",
     currentStep: "Étape en cours",
@@ -181,6 +185,9 @@ export const wizardCopy: Record<Locale, WizardCopy> = {
     chooseOption: "Choisir…",
     aiAssisted: "Assisté par IA",
     currencySuffix: "EUR",
+    validationSummaryTitle: "Corrigez les champs suivants avant de continuer",
+    validationSummaryDescription:
+      "Chaque lien replace le focus sur le champ concerné.",
   },
   en: {
     loading: "Loading assessment…",
@@ -221,6 +228,7 @@ export const wizardCopy: Record<Locale, WizardCopy> = {
     noValuePreview: "Complete the value inputs to compute the deterministic preview.",
     noData: "No data",
     editStep: "Edit step",
+    editAnswer: "Edit",
     yes: "Yes",
     no: "No",
     currentStep: "Current step",
@@ -276,5 +284,8 @@ export const wizardCopy: Record<Locale, WizardCopy> = {
     chooseOption: "Choose…",
     aiAssisted: "AI-assisted",
     currencySuffix: "EUR",
+    validationSummaryTitle: "Fix the following fields before continuing",
+    validationSummaryDescription:
+      "Each link moves focus back to the related field.",
   },
 };

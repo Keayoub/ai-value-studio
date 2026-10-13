@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DataTable } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import {
   ApiClientError,
@@ -53,10 +52,13 @@ type PortfolioCopy = {
   filteredEmptyDescription: string;
   toggleMatrix: string;
   toggleTable: string;
+  viewTabsLabel: string;
   matrixTitle: string;
   matrixDescription: string;
   tableTitle: string;
   tableDescription: string;
+  selectedSummaryTitle: string;
+  selectedSummaryDescription: string;
   detailsTitle: string;
   detailsDescription: string;
   explanationTitle: string;
@@ -89,6 +91,14 @@ type PortfolioCopy = {
   bubbleHint: string;
   matrixXLabel: string;
   matrixYLabel: string;
+  quadrantLabels: {
+    topLeft: string;
+    topRight: string;
+    bottomLeft: string;
+    bottomRight: string;
+  };
+  confidenceLevels: Record<string, string>;
+  effortLegendLabels: Record<"low" | "medium" | "high", string>;
   riskLabels: Record<string, string>;
   riskLegendDescriptions: Record<string, string>;
   categories: Record<string, string>;
@@ -100,6 +110,28 @@ type PortfolioCopy = {
 
 type PortfolioSort = "business-desc" | "readiness-desc" | "value-desc" | "updated-desc";
 type PortfolioView = "matrix" | "table";
+type MatrixDimensions = {
+  width: number;
+  height: number;
+  plotLeft: number;
+  plotTop: number;
+  plotWidth: number;
+  plotHeight: number;
+  plotRight: number;
+  plotBottom: number;
+};
+type LaidOutPortfolioPoint = {
+  item: PortfolioItem;
+  x: number;
+  y: number;
+  size: number;
+};
+
+const MATRIX_MIN_HEIGHT = 300;
+const MATRIX_DEFAULT_WIDTH = 720;
+const TOUCH_TARGET_RADIUS = 22;
+const GOLDEN_ANGLE_RADIANS = 2.399963229728653;
+const portfolioTitleCollator = new Intl.Collator("fr", { sensitivity: "base" });
 
 const portfolioCopy: Record<Locale, PortfolioCopy> = {
   fr: {
@@ -127,13 +159,17 @@ const portfolioCopy: Record<Locale, PortfolioCopy> = {
     filteredEmptyDescription:
       "Aucun cas d’usage scoré visible ne correspond aux filtres actuels. Ajustez-les ou réinitialisez-les sans quitter la page.",
     toggleMatrix: "Vue matrice",
-    toggleTable: "Vue tableau",
+    toggleTable: "Vue liste",
+    viewTabsLabel: "Choisir la représentation du portefeuille",
     matrixTitle: "Positionnement portefeuille",
     matrixDescription:
-      "Chaque point est navigable au clavier. Activez-le pour lire le détail complet.",
-    tableTitle: "Alternative textuelle",
+      "Chaque point reste sélectionnable au clavier comme au toucher, avec un résumé textuel synchronisé.",
+    tableTitle: "Liste portefeuille",
     tableDescription:
-      "Le tableau reprend les mêmes positions et permet un tri rapide pour les revues de portefeuille.",
+      "La liste reprend exactement les mêmes cas d’usage que la matrice et ajoute un tri dédié.",
+    selectedSummaryTitle: "Résumé synchronisé",
+    selectedSummaryDescription:
+      "La sélection active reste partagée entre la matrice, la liste et le panneau de détail.",
     detailsTitle: "Détail du cas d’usage",
     detailsDescription:
       "Le panneau de détail conserve une explication lisible du point sélectionné.",
@@ -162,7 +198,7 @@ const portfolioCopy: Record<Locale, PortfolioCopy> = {
     openUseCase: "Ouvrir le cas d’usage",
     explanationHint:
       "La bulle affiche la valeur nette dans l’infobulle native et le détail complet dans le panneau latéral.",
-    sortLabel: "Tri du tableau",
+    sortLabel: "Tri de la liste",
     sortOptions: {
       "business-desc": "Valeur métier décroissante",
       "readiness-desc": "Readiness décroissante",
@@ -184,6 +220,22 @@ const portfolioCopy: Record<Locale, PortfolioCopy> = {
     bubbleHint: "La taille de la bulle représente l’effort estimé.",
     matrixXLabel: "X — readiness",
     matrixYLabel: "Y — valeur métier",
+    quadrantLabels: {
+      topLeft: "Paris stratégiques",
+      topRight: "Quick wins",
+      bottomLeft: "À différer / réévaluer",
+      bottomRight: "Fondations",
+    },
+    confidenceLevels: {
+      low: "Faible",
+      medium: "Moyenne",
+      high: "Élevée",
+    },
+    effortLegendLabels: {
+      low: "Effort faible",
+      medium: "Effort moyen",
+      high: "Effort élevé",
+    },
     riskLabels: {
       Low: "Faible",
       Medium: "Modéré",
@@ -232,11 +284,17 @@ const portfolioCopy: Record<Locale, PortfolioCopy> = {
     filteredEmptyDescription:
       "No visible scored use case matches the current filters. Adjust or reset them without leaving the page.",
     toggleMatrix: "Matrix view",
-    toggleTable: "Table view",
+    toggleTable: "List view",
+    viewTabsLabel: "Choose the portfolio representation",
     matrixTitle: "Portfolio positioning",
-    matrixDescription: "Each point is keyboard reachable. Activate one to inspect the full detail.",
-    tableTitle: "Text alternative",
-    tableDescription: "The table mirrors the matrix and supports quick portfolio sorting.",
+    matrixDescription:
+      "Each point remains keyboard and touch reachable, with a synchronized text summary.",
+    tableTitle: "Portfolio list",
+    tableDescription:
+      "The list mirrors the exact same use cases as the matrix and adds dedicated sorting.",
+    selectedSummaryTitle: "Synchronized summary",
+    selectedSummaryDescription:
+      "The active selection stays shared across the matrix, the list, and the detail panel.",
     detailsTitle: "Use case detail",
     detailsDescription: "The detail panel keeps a readable explanation for the selected point.",
     explanationTitle: "Category reading",
@@ -262,7 +320,7 @@ const portfolioCopy: Record<Locale, PortfolioCopy> = {
     noSelection: "Select a point or a row to inspect the detail.",
     openUseCase: "Open use case",
     explanationHint: "The bubble exposes net value in the native tooltip and the full detail in the side panel.",
-    sortLabel: "Table sort",
+    sortLabel: "List sort",
     sortOptions: {
       "business-desc": "Business value descending",
       "readiness-desc": "Readiness descending",
@@ -284,6 +342,22 @@ const portfolioCopy: Record<Locale, PortfolioCopy> = {
     bubbleHint: "Bubble size represents estimated effort.",
     matrixXLabel: "X — readiness",
     matrixYLabel: "Y — business value",
+    quadrantLabels: {
+      topLeft: "High value · lower readiness",
+      topRight: "High value · higher readiness",
+      bottomLeft: "Lower value · lower readiness",
+      bottomRight: "Lower value · higher readiness",
+    },
+    confidenceLevels: {
+      low: "Low",
+      medium: "Medium",
+      high: "High",
+    },
+    effortLegendLabels: {
+      low: "Low effort",
+      medium: "Medium effort",
+      high: "High effort",
+    },
     riskLabels: {
       Low: "Low",
       Medium: "Medium",
@@ -344,6 +418,7 @@ export function PortfolioMatrix({
   const view: PortfolioView =
     searchParams.get("portfolioView") === "table" ? "table" : "matrix";
   const sort = normalizeSort(searchParams.get("portfolioSort"));
+  const portfolioViewId = useId();
 
   const filters = useMemo(
     () => ({
@@ -366,7 +441,7 @@ export function PortfolioMatrix({
         }
       }
       const query = next.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname);
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     },
     [pathname, router, searchParams],
   );
@@ -424,12 +499,10 @@ export function PortfolioMatrix({
     };
   }, [api, copy.errorTitle, copy.toasts.loadError, filters, reloadToken, toast, workspaceId]);
 
-  const sortedItems = useMemo(
-    () => sortPortfolioItems(portfolio?.items ?? [], sort),
-    [portfolio?.items, sort],
-  );
+  const allItems = useMemo(() => portfolio?.items ?? [], [portfolio?.items]);
+  const sortedItems = useMemo(() => sortPortfolioItems(allItems, sort), [allItems, sort]);
   const selectedItem =
-    sortedItems.find((item) => item.use_case_id === selectedUseCaseId) ?? sortedItems[0] ?? null;
+    allItems.find((item) => item.use_case_id === selectedUseCaseId) ?? sortedItems[0] ?? null;
   const availablePrograms = useMemo(() => {
     const visibleIds = new Set(visiblePrograms.map((program) => program.id));
     return (portfolio?.available_filters.programs ?? []).filter((program) => visibleIds.has(program.id));
@@ -437,15 +510,7 @@ export function PortfolioMatrix({
   const hasActiveFilters = Boolean(
     filters.programId || filters.status || filters.department || filters.risk,
   );
-  const hasVisibleScoredItems = Boolean(
-    portfolio &&
-      (
-        portfolio.available_filters.programs.length ||
-        portfolio.available_filters.statuses.length ||
-        portfolio.available_filters.departments.length ||
-        portfolio.available_filters.risks.length
-      ),
-  );
+  const hasVisibleScoredItems = allItems.length > 0;
 
   if (loading) {
     return (
@@ -567,23 +632,8 @@ export function PortfolioMatrix({
               </LabeledField>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
-              <Button
-                variant="secondary"
-                onClick={resetFilters}
-              >
+              <Button variant="secondary" onClick={resetFilters}>
                 {copy.clearFilters}
-              </Button>
-              <Button
-                variant={view === "matrix" ? "primary" : "secondary"}
-                onClick={() => updateQuery({ portfolioView: "matrix" })}
-              >
-                {copy.toggleMatrix}
-              </Button>
-              <Button
-                variant={view === "table" ? "primary" : "secondary"}
-                onClick={() => updateQuery({ portfolioView: "table" })}
-              >
-                {copy.toggleTable}
               </Button>
             </div>
           </div>
@@ -591,29 +641,40 @@ export function PortfolioMatrix({
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-[1.25fr,0.75fr]">
-        <Card>
+        <div className="min-w-0">
+          <Card>
           <CardHeader
             title={view === "matrix" ? copy.matrixTitle : copy.tableTitle}
             description={view === "matrix" ? copy.matrixDescription : copy.tableDescription}
           />
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <p className="text-sm text-[var(--studio-muted)]">{copy.explanationHint}</p>
-            <LabeledField label={copy.sortLabel}>
-              <Select
-                value={sort}
-                onChange={(event) => {
-                  const nextSort = normalizeSort(event.target.value);
-                  updateQuery({ portfolioSort: nextSort });
-                }}
-              >
-                {Object.entries(copy.sortOptions).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            </LabeledField>
-          </div>
+            <div className="space-y-4">
+              <PortfolioViewTabs
+                copy={copy}
+                view={view}
+                baseId={portfolioViewId}
+                onViewChange={(nextView) => updateQuery({ portfolioView: nextView })}
+              />
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <p className="text-sm text-[var(--studio-muted)]">{copy.explanationHint}</p>
+                {view === "table" ? (
+                  <LabeledField label={copy.sortLabel}>
+                    <Select
+                      value={sort}
+                      onChange={(event) => {
+                        const nextSort = normalizeSort(event.target.value);
+                        updateQuery({ portfolioSort: nextSort });
+                      }}
+                    >
+                      {Object.entries(copy.sortOptions).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </Select>
+                  </LabeledField>
+                ) : null}
+              </div>
+            </div>
           {sortedItems.length === 0 ? (
             <EmptyState
               title={emptyStateTitle}
@@ -623,46 +684,31 @@ export function PortfolioMatrix({
             />
           ) : view === "matrix" ? (
             <PortfolioSvgMatrix
-              items={sortedItems}
+              baseId={portfolioViewId}
+              items={allItems}
               selectedUseCaseId={selectedItem?.use_case_id ?? null}
               locale={locale}
               copy={copy}
               onSelect={setSelectedUseCaseId}
             />
           ) : (
-            <DataTable
-              caption={copy.tableDescription}
-              headers={copy.tableHeaders}
-              rows={sortedItems.map((item) => [
-                <button
-                  key={`${item.use_case_id}-row`}
-                  type="button"
-                  className="text-left font-medium text-[var(--studio-accent)] underline underline-offset-2"
-                  onClick={() => setSelectedUseCaseId(item.use_case_id)}
-                >
-                  {item.use_case_title}
-                </button>,
-                item.program_name,
-                item.readiness_average.toFixed(2),
-                String(item.business_value_score),
-                item.effort_label_fr ?? "—",
-                copy.categories[item.category] ?? item.category,
-                copy.riskLabels[item.risk_profile] ?? item.risk_profile,
-                formatCurrency(item.net_annual_value, locale, item.currency),
-                <Link
-                  key={`${item.use_case_id}-link`}
-                  href={portfolioUseCaseHref(item)}
-                  className="text-[var(--studio-accent)] underline underline-offset-2 hover:text-[var(--studio-accent-hover)]"
-                >
-                  {copy.openUseCase}
-                </Link>,
-              ])}
-              empty={<p className="text-sm text-[var(--studio-muted)]">{emptyStateDescription}</p>}
+            <PortfolioListView
+              baseId={portfolioViewId}
+              items={sortedItems}
+              selectedUseCaseId={selectedItem?.use_case_id ?? null}
+              locale={locale}
+              copy={copy}
+              onSelect={setSelectedUseCaseId}
             />
           )}
-        </Card>
+            {selectedItem ? (
+              <SelectedPortfolioSummary item={selectedItem} locale={locale} copy={copy} />
+            ) : null}
+          </Card>
+        </div>
 
-        <Card>
+        <div className="min-w-0">
+          <Card>
           <CardHeader title={copy.detailsTitle} description={copy.detailsDescription} />
           {selectedItem ? (
             <PortfolioDetail item={selectedItem} locale={locale} copy={copy} />
@@ -672,9 +718,134 @@ export function PortfolioMatrix({
               description={hasVisibleScoredItems ? copy.noSelection : emptyStateDescription}
             />
           )}
-        </Card>
+          </Card>
+        </div>
       </div>
     </section>
+  );
+}
+
+function PortfolioViewTabs({
+  copy,
+  baseId,
+  view,
+  onViewChange,
+}: {
+  copy: PortfolioCopy;
+  baseId: string;
+  view: PortfolioView;
+  onViewChange: (view: PortfolioView) => void;
+}) {
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const views: Array<{ view: PortfolioView; label: string }> = [
+    { view: "matrix", label: copy.toggleMatrix },
+    { view: "table", label: copy.toggleTable },
+  ];
+
+  return (
+    <div>
+      <div
+        role="tablist"
+        aria-label={copy.viewTabsLabel}
+        className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-1"
+      >
+        {views.map((option, index) => {
+          const selected = option.view === view;
+          const tabId = `${baseId}-${option.view}-tab`;
+          const panelId = `${baseId}-${option.view}-panel`;
+          return (
+            <button
+              key={option.view}
+              ref={(element) => {
+                tabRefs.current[index] = element;
+              }}
+              id={tabId}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              aria-controls={panelId}
+              tabIndex={selected ? 0 : -1}
+              className={[
+                "rounded-full px-4 py-2 text-sm font-medium transition",
+                selected
+                  ? "bg-[var(--studio-brand)] text-white"
+                  : "text-[var(--studio-foreground)] hover:bg-[var(--studio-surface)]",
+              ].join(" ")}
+              onClick={() => onViewChange(option.view)}
+              onKeyDown={(event) => {
+                let nextIndex: number | null = null;
+                if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+                  nextIndex = (index + 1) % views.length;
+                } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+                  nextIndex = (index - 1 + views.length) % views.length;
+                } else if (event.key === "Home") {
+                  nextIndex = 0;
+                } else if (event.key === "End") {
+                  nextIndex = views.length - 1;
+                }
+                if (nextIndex === null) {
+                  return;
+                }
+                event.preventDefault();
+                onViewChange(views[nextIndex].view);
+                tabRefs.current[nextIndex]?.focus();
+              }}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SelectedPortfolioSummary({
+  item,
+  locale,
+  copy,
+}: {
+  item: PortfolioItem;
+  locale: Locale;
+  copy: PortfolioCopy;
+}) {
+  return (
+    <div
+      data-portfolio-summary=""
+      aria-live="polite"
+      aria-atomic="true"
+      className="mt-6 rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-4"
+    >
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--studio-muted)]">
+        {copy.selectedSummaryTitle}
+      </p>
+      <p className="mt-1 text-sm text-[var(--studio-muted)]">{copy.selectedSummaryDescription}</p>
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-base font-semibold text-[var(--studio-foreground)]">
+            {item.use_case_title}
+          </p>
+          <p className="mt-1 text-sm text-[var(--studio-muted)]">{item.program_name}</p>
+        </div>
+        <Badge tone={badgeToneForRisk(item.risk_profile)}>
+          {copy.riskLabels[item.risk_profile] ?? item.risk_profile}
+        </Badge>
+      </div>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+        <DetailRow label={copy.category} value={copy.categories[item.category] ?? item.category} />
+        <DetailRow label={copy.netAnnualValue} value={formatCurrency(item.net_annual_value, locale, item.currency)} />
+        <DetailRow label={copy.readinessAverage} value={item.readiness_average.toFixed(2)} />
+        <DetailRow label={copy.businessValueScore} value={String(item.business_value_score)} />
+        <DetailRow label={copy.effortLabel} value={item.effort_label_fr ?? "—"} />
+        <DetailRow label={copy.confidenceLabel} value={formatConfidenceLabel(item.confidence_level, copy)} />
+      </dl>
+      <Link
+        href={portfolioUseCaseHref(item)}
+        className="mt-4 inline-flex rounded-full border border-[var(--studio-border)] bg-[var(--studio-surface)] px-4 py-2 text-sm font-medium text-[var(--studio-accent)] transition hover:border-[var(--studio-brand)] hover:text-[var(--studio-accent-hover)]"
+      >
+        {copy.openUseCase}
+      </Link>
+    </div>
   );
 }
 
@@ -707,7 +878,7 @@ function PortfolioDetail({
           <DetailRow label={copy.netAnnualValue} value={formatCurrency(item.net_annual_value, locale, item.currency)} />
           <DetailRow label={copy.departmentLabel} value={item.department ?? "—"} />
           <DetailRow label={copy.statusLabel} value={formatUseCaseStatusLabel(locale, item.status)} />
-          <DetailRow label={copy.confidenceLabel} value={titleCase(item.confidence_level)} />
+          <DetailRow label={copy.confidenceLabel} value={formatConfidenceLabel(item.confidence_level, copy)} />
           <DetailRow label={copy.effortLabel} value={item.effort_label_fr ?? "—"} />
           <DetailRow label={copy.updatedAt} value={formatDate(item.updated_at, locale)} />
         </dl>
@@ -730,12 +901,14 @@ function PortfolioDetail({
 }
 
 function PortfolioSvgMatrix({
+  baseId,
   items,
   selectedUseCaseId,
   locale,
   copy,
   onSelect,
 }: {
+  baseId: string;
   items: PortfolioItem[];
   selectedUseCaseId: string | null;
   locale: Locale;
@@ -743,94 +916,211 @@ function PortfolioSvgMatrix({
   onSelect: (useCaseId: string) => void;
 }) {
   const [focusedUseCaseId, setFocusedUseCaseId] = useState<string | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const dimensions = useResponsiveMatrixDimensions(frameRef);
+  const laidOutItems = useMemo(
+    () => layoutPortfolioPoints(items, dimensions),
+    [dimensions, items],
+  );
+  const legendEntries = useMemo(
+    () => (["low", "medium", "high"] as const).map((effort) => ({
+      effort,
+      radius: radiusForEffort(effort),
+      label: copy.effortLegendLabels[effort],
+    })),
+    [copy.effortLegendLabels],
+  );
+  const tabPanelId = `${baseId}-matrix-panel`;
 
   return (
-    <div className="mt-6 space-y-4">
+    <div id={tabPanelId} role="tabpanel" aria-labelledby={`${baseId}-matrix-tab`} className="mt-6 space-y-4">
       <p className="sr-only">{copy.matrixAriaLabel}</p>
-      <svg viewBox="0 0 780 520" className="h-auto w-full max-w-full">
-        <defs>
-          <pattern id="risk-dots" width="8" height="8" patternUnits="userSpaceOnUse">
-            <circle cx="2" cy="2" r="1.25" fill="white" />
-            <circle cx="6" cy="6" r="1.25" fill="white" />
-          </pattern>
-          <pattern id="risk-diagonal" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeWidth="3" />
-          </pattern>
-          <pattern id="risk-crosshatch" width="10" height="10" patternUnits="userSpaceOnUse">
-            <path d="M0 0 L10 10 M10 0 L0 10" stroke="white" strokeWidth="1.5" />
-          </pattern>
-        </defs>
-
-        <rect x="80" y="40" width="620" height="360" rx="24" fill="var(--studio-surface-subtle)" />
-        {[1, 2, 3, 4, 5].map((score) => {
-          const x = projectX(score);
-          const y = projectY(score);
-          return (
-            <g key={score}>
-              <line x1={x} y1="60" x2={x} y2="380" stroke="var(--studio-border)" strokeDasharray="4 6" />
-              <line x1="100" y1={y} x2="680" y2={y} stroke="var(--studio-border)" strokeDasharray="4 6" />
-              <text x={x} y="410" textAnchor="middle" className="fill-[var(--studio-muted)] text-[12px]">
-                {score}
-              </text>
-              <text x="70" y={y + 4} textAnchor="end" className="fill-[var(--studio-muted)] text-[12px]">
-                {score}
-              </text>
-            </g>
-          );
-        })}
-
-        <text x="390" y="448" textAnchor="middle" className="fill-[var(--studio-foreground)] text-[13px] font-semibold">
-          {copy.readinessAxis}
-        </text>
-        <text
-          x="26"
-          y="220"
-          textAnchor="middle"
-          className="fill-[var(--studio-foreground)] text-[13px] font-semibold"
-          transform="rotate(-90 26 220)"
+      <div
+        ref={frameRef}
+        data-portfolio-matrix-frame=""
+        className="relative w-full overflow-hidden rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-3 sm:p-4"
+      >
+        <svg
+          width={dimensions.width}
+          height={dimensions.height}
+          viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+          className="block h-auto w-full"
         >
-          {copy.businessValueAxis}
-        </text>
+          <defs>
+            <pattern id="risk-dots" width="8" height="8" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="1.25" fill="white" />
+              <circle cx="6" cy="6" r="1.25" fill="white" />
+            </pattern>
+            <pattern id="risk-diagonal" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeWidth="3" />
+            </pattern>
+            <pattern id="risk-crosshatch" width="10" height="10" patternUnits="userSpaceOnUse">
+              <path d="M0 0 L10 10 M10 0 L0 10" stroke="white" strokeWidth="1.5" />
+            </pattern>
+          </defs>
 
-        {items.map((item) => (
-          <PortfolioPoint
-            key={item.use_case_id}
-            item={item}
-            locale={locale}
-            copy={copy}
-            selected={item.use_case_id === selectedUseCaseId}
-            focused={item.use_case_id === focusedUseCaseId}
-            onSelect={() => onSelect(item.use_case_id)}
-            onFocus={() => setFocusedUseCaseId(item.use_case_id)}
-            onBlur={() => setFocusedUseCaseId((current) => (current === item.use_case_id ? null : current))}
+          <rect
+            x={dimensions.plotLeft}
+            y={dimensions.plotTop}
+            width={dimensions.plotWidth}
+            height={dimensions.plotHeight}
+            rx="24"
+            fill="var(--studio-surface)"
           />
-        ))}
-      </svg>
-      <div className="flex flex-wrap gap-4 text-sm">
-        {(["Low", "Medium", "High", "Critical"] as const).map((risk) => (
-          <div
-            key={risk}
-            className="flex items-center gap-3 rounded-2xl bg-[var(--studio-surface-subtle)] px-3 py-2"
+          {[1, 2, 3, 4, 5].map((score) => {
+            const x = projectX(score, dimensions);
+            const y = projectY(score, dimensions);
+            return (
+              <g key={score}>
+                <line
+                  x1={x}
+                  y1={dimensions.plotTop}
+                  x2={x}
+                  y2={dimensions.plotBottom}
+                  stroke="var(--studio-border)"
+                  strokeDasharray="4 6"
+                />
+                <line
+                  x1={dimensions.plotLeft}
+                  y1={y}
+                  x2={dimensions.plotRight}
+                  y2={y}
+                  stroke="var(--studio-border)"
+                  strokeDasharray="4 6"
+                />
+                <text
+                  x={x}
+                  y={dimensions.plotBottom + 28}
+                  textAnchor="middle"
+                  fill="var(--studio-muted)"
+                  fontSize="12"
+                >
+                  {score}
+                </text>
+                <text
+                  x={dimensions.plotLeft - 18}
+                  y={y + 4}
+                  textAnchor="end"
+                  fill="var(--studio-muted)"
+                  fontSize="12"
+                >
+                  {score}
+                </text>
+              </g>
+            );
+          })}
+
+          <text
+            x={dimensions.plotLeft + dimensions.plotWidth / 2}
+            y={dimensions.height - 16}
+            textAnchor="middle"
+            fill="var(--studio-foreground)"
+            fontSize="13"
+            fontWeight="600"
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 shrink-0">
-              {renderPointShape(shapeForRisk(risk), 12, 12, 6, {
-                fill: colorForRisk(risk),
-                stroke: "var(--studio-foreground)",
-                strokeWidth: 1.5,
-              })}
-            </svg>
-            <span className="text-[var(--studio-foreground)]">
-              {copy.riskLabels[risk]} — {copy.riskLegendDescriptions[risk]}
-            </span>
+            {copy.readinessAxis}
+          </text>
+          <text
+            x="18"
+            y={dimensions.plotTop + dimensions.plotHeight / 2}
+            textAnchor="middle"
+            fill="var(--studio-foreground)"
+            fontSize="13"
+            fontWeight="600"
+            transform={`rotate(-90 18 ${dimensions.plotTop + dimensions.plotHeight / 2})`}
+          >
+            {copy.businessValueAxis}
+          </text>
+
+          {laidOutItems.map((point) => (
+            <PortfolioPoint
+              key={point.item.use_case_id}
+              point={point}
+              locale={locale}
+              copy={copy}
+              selected={point.item.use_case_id === selectedUseCaseId}
+              focused={point.item.use_case_id === focusedUseCaseId}
+              onSelect={() => onSelect(point.item.use_case_id)}
+              onFocus={() => setFocusedUseCaseId(point.item.use_case_id)}
+              onBlur={() =>
+                setFocusedUseCaseId((current) =>
+                  current === point.item.use_case_id ? null : current,
+                )
+              }
+            />
+          ))}
+        </svg>
+
+        <div
+          data-portfolio-quadrant="top-left"
+          className="pointer-events-none absolute left-2 top-6 max-w-[calc(50%-0.5rem)] rounded-md px-1 py-2 text-[12px] font-medium leading-4 text-[var(--studio-foreground)] shadow-sm sm:left-6 sm:max-w-[42%] sm:px-3"
+          style={{ backgroundColor: "color-mix(in srgb, var(--studio-surface) 88%, transparent)" }}
+        >
+          {copy.quadrantLabels.topLeft}
+        </div>
+        <div
+          data-portfolio-quadrant="top-right"
+          className="pointer-events-none absolute right-2 top-6 max-w-[calc(50%-0.5rem)] rounded-md px-1 py-2 text-right text-[12px] font-medium leading-4 text-[var(--studio-foreground)] shadow-sm sm:right-6 sm:max-w-[42%] sm:px-3"
+          style={{ backgroundColor: "color-mix(in srgb, var(--studio-surface) 88%, transparent)" }}
+        >
+          {copy.quadrantLabels.topRight}
+        </div>
+        <div
+          data-portfolio-quadrant="bottom-left"
+          className="pointer-events-none absolute bottom-24 left-2 max-w-[calc(50%-0.5rem)] rounded-md px-1 py-2 text-[12px] font-medium leading-4 text-[var(--studio-foreground)] shadow-sm sm:left-6 sm:max-w-[42%] sm:px-3"
+          style={{ backgroundColor: "color-mix(in srgb, var(--studio-surface) 88%, transparent)" }}
+        >
+          {copy.quadrantLabels.bottomLeft}
+        </div>
+        <div
+          data-portfolio-quadrant="bottom-right"
+          className="pointer-events-none absolute bottom-24 right-2 max-w-[calc(50%-0.5rem)] rounded-md px-1 py-2 text-right text-[12px] font-medium leading-4 text-[var(--studio-foreground)] shadow-sm sm:right-6 sm:max-w-[42%] sm:px-3"
+          style={{ backgroundColor: "color-mix(in srgb, var(--studio-surface) 88%, transparent)" }}
+        >
+          {copy.quadrantLabels.bottomRight}
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="flex flex-wrap gap-4 text-sm">
+          {(["Low", "Medium", "High", "Critical"] as const).map((risk) => (
+            <div
+              key={risk}
+              className="flex items-center gap-3 rounded-2xl bg-[var(--studio-surface-subtle)] px-3 py-2"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 shrink-0">
+                {renderPointShape(shapeForRisk(risk), 12, 12, 6, {
+                  fill: colorForRisk(risk),
+                  stroke: "var(--studio-foreground)",
+                  strokeWidth: 1.5,
+                })}
+              </svg>
+              <span className="text-[var(--studio-foreground)]">
+                {copy.riskLabels[risk]} — {copy.riskLegendDescriptions[risk]}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-2xl bg-[var(--studio-surface-subtle)] px-4 py-3">
+          <p className="text-sm font-semibold text-[var(--studio-foreground)]">{copy.legendEffort}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-5 text-sm text-[var(--studio-foreground)]">
+            {legendEntries.map((entry) => (
+              <div key={entry.effort} className="flex items-center gap-3">
+                <svg aria-hidden="true" width="44" height="44" viewBox="0 0 44 44" className="shrink-0">
+                  <circle cx="22" cy="22" r={Math.min(entry.radius, 16)} fill="var(--studio-brand)" opacity="0.2" />
+                  <circle cx="22" cy="22" r={Math.min(entry.radius, 16)} fill="none" stroke="var(--studio-brand)" strokeWidth="2" />
+                </svg>
+                <span>{entry.label}</span>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
 }
 
 function PortfolioPoint({
-  item,
+  point,
   locale,
   copy,
   selected,
@@ -839,7 +1129,7 @@ function PortfolioPoint({
   onFocus,
   onBlur,
 }: {
-  item: PortfolioItem;
+  point: LaidOutPortfolioPoint;
   locale: Locale;
   copy: PortfolioCopy;
   selected: boolean;
@@ -848,9 +1138,7 @@ function PortfolioPoint({
   onFocus: () => void;
   onBlur: () => void;
 }) {
-  const size = radiusForEffort(item.effort_band);
-  const x = projectX(item.matrix_x);
-  const y = projectY(item.matrix_y);
+  const { item, size, x, y } = point;
   const fill = colorForRisk(item.risk_profile);
   const commonProps = {
     stroke: selected ? "var(--studio-brand)" : "var(--studio-foreground)",
@@ -874,6 +1162,14 @@ function PortfolioPoint({
       className="cursor-pointer outline-none"
     >
       <title>{`${item.use_case_title} · ${formatCurrency(item.net_annual_value, locale, item.currency)}`}</title>
+      <circle cx={x} cy={y} r={Math.max(size + 6, TOUCH_TARGET_RADIUS)} fill="transparent" />
+      {selected
+        ? renderPointShape(item.risk_shape, x, y, size + 10, {
+            fill: "none",
+            stroke: "var(--studio-brand)",
+            strokeWidth: 4,
+          })
+        : null}
       {focused
         ? renderPointShape(item.risk_shape, x, y, size + 8, {
             fill: "none",
@@ -898,6 +1194,82 @@ function SummaryMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-4">
       <p className="text-xs uppercase tracking-wide text-[var(--studio-muted)]">{label}</p>
       <p className="mt-2 text-sm font-medium text-[var(--studio-foreground)]">{value}</p>
+    </div>
+  );
+}
+
+function PortfolioListView({
+  baseId,
+  items,
+  selectedUseCaseId,
+  locale,
+  copy,
+  onSelect,
+}: {
+  baseId: string;
+  items: PortfolioItem[];
+  selectedUseCaseId: string | null;
+  locale: Locale;
+  copy: PortfolioCopy;
+  onSelect: (useCaseId: string) => void;
+}) {
+  return (
+    <div id={`${baseId}-table-panel`} role="tabpanel" aria-labelledby={`${baseId}-table-tab`} className="mt-6">
+      <ul className="grid gap-3">
+        {items.map((item) => {
+          const selected = item.use_case_id === selectedUseCaseId;
+          return (
+            <li
+              key={item.use_case_id}
+              data-portfolio-record={item.use_case_id}
+              className={[
+                "rounded-2xl border p-4 transition",
+                selected
+                  ? "border-[var(--studio-brand)] bg-[var(--studio-surface-subtle)] shadow-sm"
+                  : "border-[var(--studio-border)] bg-[var(--studio-surface)]",
+              ].join(" ")}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    className="text-left text-base font-semibold text-[var(--studio-accent)] underline underline-offset-2"
+                    onClick={() => onSelect(item.use_case_id)}
+                  >
+                    {item.use_case_title}
+                  </button>
+                  <p className="mt-1 text-sm text-[var(--studio-muted)]">{item.program_name}</p>
+                </div>
+                <Badge tone={badgeToneForRisk(item.risk_profile)}>
+                  {copy.riskLabels[item.risk_profile] ?? item.risk_profile}
+                </Badge>
+              </div>
+              <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                <DetailRow label={copy.category} value={copy.categories[item.category] ?? item.category} />
+                <DetailRow label={copy.riskProfile} value={copy.riskLabels[item.risk_profile] ?? item.risk_profile} />
+                <DetailRow label={copy.netAnnualValue} value={formatCurrency(item.net_annual_value, locale, item.currency)} />
+                <DetailRow label={copy.readinessAverage} value={item.readiness_average.toFixed(2)} />
+                <DetailRow label={copy.effortLabel} value={item.effort_label_fr ?? "—"} />
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Button
+                  variant={selected ? "primary" : "secondary"}
+                  onClick={() => onSelect(item.use_case_id)}
+                >
+                  {copy.detailsTitle}
+                </Button>
+                <Link
+                  href={portfolioUseCaseHref(item)}
+                  className="inline-flex rounded-full border border-[var(--studio-border)] px-4 py-2 text-sm font-medium text-[var(--studio-accent)] transition hover:border-[var(--studio-brand)] hover:text-[var(--studio-accent-hover)]"
+                >
+                  {copy.openUseCase}
+                </Link>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -948,32 +1320,162 @@ function sortPortfolioItems(items: PortfolioItem[], sort: PortfolioSort) {
     if (sort === "readiness-desc") {
       return (
         right.readiness_average - left.readiness_average ||
-        right.business_value_score - left.business_value_score
+        right.business_value_score - left.business_value_score ||
+        stablePortfolioTieBreak(left, right)
       );
     }
     if (sort === "value-desc") {
-      return right.net_annual_value - left.net_annual_value || right.matrix_y - left.matrix_y;
+      return (
+        right.net_annual_value - left.net_annual_value ||
+        right.matrix_y - left.matrix_y ||
+        stablePortfolioTieBreak(left, right)
+      );
     }
     if (sort === "updated-desc") {
       return (
         new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime() ||
-        right.business_value_score - left.business_value_score
+        right.business_value_score - left.business_value_score ||
+        stablePortfolioTieBreak(left, right)
       );
     }
     return (
       right.business_value_score - left.business_value_score ||
-      right.readiness_average - left.readiness_average
+      right.readiness_average - left.readiness_average ||
+      stablePortfolioTieBreak(left, right)
     );
   });
   return sorted;
 }
 
-function projectX(value: number) {
-  return 100 + ((Math.max(1, Math.min(5, value)) - 1) / 4) * 580;
+function useResponsiveMatrixDimensions(containerRef: RefObject<HTMLDivElement | null>) {
+  const [containerWidth, setContainerWidth] = useState(MATRIX_DEFAULT_WIDTH);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+    const updateWidth = () => {
+      const nextWidth = Math.max(Math.floor(container.clientWidth) - 24, 280);
+      setContainerWidth((current) => (current === nextWidth ? current : nextWidth));
+    };
+    updateWidth();
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+    };
+  }, [containerRef]);
+
+  return useMemo(() => createMatrixDimensions(containerWidth), [containerWidth]);
 }
 
-function projectY(value: number) {
-  return 380 - ((Math.max(1, Math.min(5, value)) - 1) / 4) * 320;
+function createMatrixDimensions(width: number): MatrixDimensions {
+  const safeWidth = Math.max(width, 280);
+  const compact = safeWidth < 420;
+  const plotLeft = compact ? 56 : 76;
+  const plotTop = 52;
+  const plotRightPadding = compact ? 20 : 32;
+  const plotBottomPadding = compact ? 92 : 96;
+  const plotWidth = Math.max(safeWidth - plotLeft - plotRightPadding, 180);
+  const plotHeight = Math.max(Math.round(plotWidth * 0.6), MATRIX_MIN_HEIGHT - plotTop - plotBottomPadding);
+  const height = Math.max(MATRIX_MIN_HEIGHT, plotTop + plotHeight + plotBottomPadding);
+
+  return {
+    width: safeWidth,
+    height,
+    plotLeft,
+    plotTop,
+    plotWidth,
+    plotHeight,
+    plotRight: plotLeft + plotWidth,
+    plotBottom: plotTop + plotHeight,
+  };
+}
+
+function layoutPortfolioPoints(
+  items: PortfolioItem[],
+  dimensions: MatrixDimensions,
+): LaidOutPortfolioPoint[] {
+  const orderedItems = [...items].sort((left, right) => stablePortfolioTieBreak(left, right));
+  const clusters = new Map<string, PortfolioItem[]>();
+  for (const item of orderedItems) {
+    const key = matrixClusterKey(item, dimensions);
+    const current = clusters.get(key);
+    if (current) {
+      current.push(item);
+    } else {
+      clusters.set(key, [item]);
+    }
+  }
+
+  return orderedItems.map((item) => {
+    const size = radiusForEffort(item.effort_band);
+    const baseX = projectX(item.matrix_x, dimensions);
+    const baseY = projectY(item.matrix_y, dimensions);
+    const clusterKey = matrixClusterKey(item, dimensions);
+    const clusterItems = clusters.get(clusterKey) ?? [item];
+    const clusterIndex = clusterItems.findIndex(
+      (clusterItem) => clusterItem.use_case_id === item.use_case_id,
+    );
+    const { dx, dy } = deterministicClusterOffset(clusterKey, clusterIndex, clusterItems.length, size);
+
+    return {
+      item,
+      x: clamp(baseX + dx, dimensions.plotLeft + TOUCH_TARGET_RADIUS, dimensions.plotRight - TOUCH_TARGET_RADIUS),
+      y: clamp(baseY + dy, dimensions.plotTop + TOUCH_TARGET_RADIUS, dimensions.plotBottom - TOUCH_TARGET_RADIUS),
+      size,
+    };
+  });
+}
+
+function matrixClusterKey(item: PortfolioItem, dimensions: MatrixDimensions) {
+  const quantizedX = Math.round((projectX(item.matrix_x, dimensions) - dimensions.plotLeft) / 28);
+  const quantizedY = Math.round((projectY(item.matrix_y, dimensions) - dimensions.plotTop) / 28);
+  return `${quantizedX}:${quantizedY}`;
+}
+
+function deterministicClusterOffset(clusterKey: string, index: number, total: number, size: number) {
+  if (total <= 1 || index === 0) {
+    return { dx: 0, dy: 0 };
+  }
+  const phase = hashString(clusterKey) % 360;
+  const radius = Math.max(size + 10, 18) * Math.sqrt(index);
+  const angle = ((phase / 180) * Math.PI) + ((index - 1) * GOLDEN_ANGLE_RADIANS);
+  return {
+    dx: Math.cos(angle) * radius,
+    dy: Math.sin(angle) * radius,
+  };
+}
+
+function stablePortfolioTieBreak(left: PortfolioItem, right: PortfolioItem) {
+  return (
+    portfolioTitleCollator.compare(left.use_case_title, right.use_case_title) ||
+    portfolioTitleCollator.compare(left.program_name, right.program_name) ||
+    left.use_case_id.localeCompare(right.use_case_id)
+  );
+}
+
+function hashString(value: string) {
+  let hash = 0;
+  for (const character of value) {
+    hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function projectX(value: number, dimensions: MatrixDimensions) {
+  return dimensions.plotLeft + ((Math.max(1, Math.min(5, value)) - 1) / 4) * dimensions.plotWidth;
+}
+
+function projectY(value: number, dimensions: MatrixDimensions) {
+  return dimensions.plotBottom - ((Math.max(1, Math.min(5, value)) - 1) / 4) * dimensions.plotHeight;
 }
 
 function radiusForEffort(effortBand: string | null) {
@@ -1038,6 +1540,11 @@ function formatDate(value: string, locale: Locale) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatConfidenceLabel(value: string, copy: PortfolioCopy) {
+  const normalized = value.toLowerCase();
+  return copy.confidenceLevels[normalized] ?? titleCase(value);
 }
 
 function titleCase(value: string) {

@@ -23,6 +23,9 @@ type StudioCopy = {
     members: string;
   };
   navigation: {
+    primary: string;
+    openMenu: string;
+    closeMenu: string;
     home: string;
     workspace: string;
     program: string;
@@ -184,6 +187,9 @@ const studioCopy: Record<StudioLocale, StudioCopy> = {
       members: "Membres",
     },
     navigation: {
+      primary: "Navigation principale",
+      openMenu: "Ouvrir la navigation",
+      closeMenu: "Fermer la navigation",
       home: "Connexion et espaces",
       workspace: "Espace",
       program: "Programme",
@@ -359,6 +365,9 @@ const studioCopy: Record<StudioLocale, StudioCopy> = {
       members: "Members",
     },
     navigation: {
+      primary: "Primary navigation",
+      openMenu: "Open navigation",
+      closeMenu: "Close navigation",
       home: "Sign-in and workspaces",
       workspace: "Workspace",
       program: "Program",

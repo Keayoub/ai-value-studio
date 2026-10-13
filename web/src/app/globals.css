@@ -58,11 +58,11 @@
 
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
   --shadow-sm: 0 1px 2px rgb(16 42 67 / 0.08);
-  --shadow-md: 0 8px 24px rgb(16 42 67 / 0.10);
-  --shadow-lg: 0 20px 44px rgb(16 42 67 / 0.14);
+  --shadow-md: 0 10px 24px rgb(16 42 67 / 0.08);
+  --shadow-lg: 0 18px 40px rgb(16 42 67 / 0.12);
   --ease-standard: cubic-bezier(.2, .8, .2, 1);
 }
 
@@ -99,8 +99,8 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--studio-background);
+  color: var(--studio-foreground);
   font-family: var(--font-sans);
   min-height: 100vh;
 }
@@ -112,4 +112,13 @@ a {
 
 * {
   box-sizing: border-box;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--studio-focus) 20%, white);
+  color: var(--studio-foreground);
+}
+
+:focus-visible {
+  scroll-margin: 6rem;
 }

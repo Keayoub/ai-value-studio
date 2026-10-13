@@ -143,7 +143,7 @@ export function ReviewInboxCard({
                   </div>
                 </div>
                 <Link
-                  className="text-sm font-medium text-[var(--studio-accent)] underline underline-offset-2 hover:text-[var(--studio-accent-hover)]"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-[var(--studio-border)] px-3 py-2 text-sm font-medium text-[var(--studio-accent)] transition hover:border-[var(--studio-accent)] hover:text-[var(--studio-accent-hover)]"
                   href={hrefForUseCase(workspaceId, item.program_id, item.use_case_id)}
                 >
                   {copy.open}

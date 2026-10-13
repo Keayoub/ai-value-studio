@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,17 +44,29 @@ const documentCentreCopy = {
     generateMarkdown: "Générer Markdown",
     generatePdf: "Générer PDF",
     download: "Télécharger",
+    downloadNamed: (typeLabel: string, formatLabel: string, versionNo: number) =>
+      `Télécharger ${typeLabel} ${formatLabel} v${versionNo}`,
     downloadCurrentAria: (typeLabel: string) => `Télécharger la version courante de ${typeLabel}`,
     downloadVersionAria: (typeLabel: string, versionNo: number) =>
       `Télécharger ${typeLabel} version ${versionNo}`,
     approve: "Approuver le document",
+    approveNamed: (typeLabel: string, formatLabel: string, versionNo: number) =>
+      `Approuver ${typeLabel} ${formatLabel} v${versionNo}`,
     approveCurrentAria: (typeLabel: string) => `Approuver la version courante de ${typeLabel}`,
     versionsSource: "Versions source",
+    prerequisites: "Pré-requis actuels",
+    prerequisitesDescription:
+      "Le même modèle d’éligibilité expose les versions source et les raisons de blocage Markdown/PDF.",
+    viewPrerequisites: "Voir les prérequis",
     currentVersion: "Version courante",
     versionHistory: "Historique des versions",
     version: "Version",
     status: "Statut",
     format: "Format",
+    sourceAssessment: "Évaluation source",
+    sourceScorecard: "Scorecard source",
+    sourceReview: "Revue source",
+    actions: "Actions",
     createdAt: "Généré le",
     createdBy: "Auteur",
     approval: "Approbation",
@@ -113,17 +125,29 @@ const documentCentreCopy = {
     generateMarkdown: "Generate Markdown",
     generatePdf: "Generate PDF",
     download: "Download",
+    downloadNamed: (typeLabel: string, formatLabel: string, versionNo: number) =>
+      `Download ${typeLabel} ${formatLabel} v${versionNo}`,
     downloadCurrentAria: (typeLabel: string) => `Download current ${typeLabel}`,
     downloadVersionAria: (typeLabel: string, versionNo: number) =>
       `Download ${typeLabel} version ${versionNo}`,
     approve: "Approve document",
+    approveNamed: (typeLabel: string, formatLabel: string, versionNo: number) =>
+      `Approve ${typeLabel} ${formatLabel} v${versionNo}`,
     approveCurrentAria: (typeLabel: string) => `Approve current ${typeLabel}`,
     versionsSource: "Source versions",
+    prerequisites: "Current prerequisites",
+    prerequisitesDescription:
+      "The same eligibility model exposes source versions and the exact Markdown/PDF blocking reasons.",
+    viewPrerequisites: "View prerequisites",
     currentVersion: "Current version",
     versionHistory: "Version history",
     version: "Version",
     status: "Status",
     format: "Format",
+    sourceAssessment: "Source assessment",
+    sourceScorecard: "Source scorecard",
+    sourceReview: "Source review",
+    actions: "Actions",
     createdAt: "Generated on",
     createdBy: "Author",
     approval: "Approval",
@@ -288,6 +312,18 @@ function formatApprovalLabel(
   return `${approvedAt} · ${approver}`;
 }
 
+function formatEligibilityValue(value: number | null, prefix: string, empty: string) {
+  return value === null ? empty : `${prefix}${value}`;
+}
+
+function formatEligibilityReviewStatus(
+  status: ReviewStatus | null,
+  locale: Locale,
+  empty: string,
+) {
+  return status ? formatReviewStatusLabel(status, locale) : empty;
+}
+
 function currentVersionDownloadReason(
   viewerRole: WorkspaceRole | string | null,
   version: GeneratedDocumentVersion | null,
@@ -316,6 +352,161 @@ function currentApprovalReason(document: GeneratedDocument, locale: Locale) {
   return null;
 }
 
+type DocumentRecordRow = {
+  key: string;
+  cells: ReactNode[];
+  mobileTitle: ReactNode;
+  mobileFields: Array<{ label: string; value: ReactNode; mono?: boolean }>;
+  mobileActions?: ReactNode;
+};
+
+function DocumentRecordTable({
+  caption,
+  headers,
+  rows,
+  empty,
+}: {
+  caption: string;
+  headers: string[];
+  rows: DocumentRecordRow[];
+  empty: ReactNode;
+}) {
+  const desktopTableRef = useRef<HTMLDivElement | null>(null);
+  const [desktopTableScrollable, setDesktopTableScrollable] = useState(false);
+
+  useEffect(() => {
+    const element = desktopTableRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateScrollable = () => {
+      setDesktopTableScrollable(element.scrollWidth > element.clientWidth + 1);
+    };
+
+    updateScrollable();
+    window.addEventListener("resize", updateScrollable);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener("resize", updateScrollable);
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateScrollable();
+    });
+    observer.observe(element);
+    const table = element.querySelector("table");
+    if (table) {
+      observer.observe(table);
+    }
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateScrollable);
+    };
+  }, [rows.length]);
+
+  if (!rows.length) {
+    return <>{empty}</>;
+  }
+
+  return (
+    <>
+      <div
+        ref={desktopTableRef}
+        tabIndex={desktopTableScrollable ? 0 : undefined}
+        aria-label={desktopTableScrollable ? caption : undefined}
+        className="hidden overflow-x-auto rounded-2xl border border-[var(--studio-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-brand)] lg:block"
+      >
+        <table className="min-w-full border-collapse text-sm">
+          <caption className="sr-only">{caption}</caption>
+          <thead className="bg-[var(--studio-surface-subtle)] text-left text-[var(--studio-muted)]">
+            <tr>
+              {headers.map((header) => (
+                <th key={header} scope="col" className="px-4 py-3 font-medium">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr
+                key={row.key}
+                className={cn(
+                  rowIndex < rows.length - 1 && "border-b border-[var(--studio-border)]",
+                )}
+              >
+                {row.cells.map((cell, cellIndex) =>
+                  cellIndex === 0 ? (
+                    <th
+                      key={`${row.key}-${cellIndex}`}
+                      scope="row"
+                      className="px-4 py-3 text-left font-semibold text-[var(--studio-foreground)]"
+                    >
+                      {cell}
+                    </th>
+                  ) : (
+                    <td
+                      key={`${row.key}-${cellIndex}`}
+                      className="px-4 py-3 align-top text-[var(--studio-foreground)]"
+                    >
+                      {cell}
+                    </td>
+                  ),
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="space-y-3 lg:hidden">
+        {rows.map((row) => (
+          <article
+            key={row.key}
+            className="rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4"
+          >
+            <div className="font-semibold text-[var(--studio-foreground)]">{row.mobileTitle}</div>
+            <dl className="mt-3 space-y-3">
+              {row.mobileFields.map((field) => (
+                <div key={`${row.key}-${field.label}`}>
+                  <dt className="text-xs uppercase tracking-[0.08em] text-[var(--studio-muted)]">
+                    {field.label}
+                  </dt>
+                  <dd
+                    className={cn(
+                      "mt-1 text-sm text-[var(--studio-foreground)]",
+                      field.mono && "font-mono text-xs",
+                    )}
+                  >
+                    {field.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {row.mobileActions ? <div className="mt-4">{row.mobileActions}</div> : null}
+          </article>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function EligibilityField({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-[0.08em] text-[var(--studio-muted)]">{label}</dt>
+      <dd className="mt-1 text-sm font-medium text-[var(--studio-foreground)]">{value}</dd>
+    </div>
+  );
+}
+
 type ActionButtonProps = {
   label: string;
   ariaLabel?: string;
@@ -324,6 +515,7 @@ type ActionButtonProps = {
   busy?: boolean;
   onClick: () => void;
   variant?: "primary" | "secondary" | "ghost" | "danger";
+  className?: string;
 };
 
 function ActionButton({
@@ -334,6 +526,7 @@ function ActionButton({
   busy = false,
   onClick,
   variant = "primary",
+  className,
 }: ActionButtonProps) {
   const unavailable = Boolean(description);
   return (
@@ -344,7 +537,7 @@ function ActionButton({
         aria-describedby={description && descriptionId ? descriptionId : undefined}
         aria-disabled={unavailable || undefined}
         disabled={busy}
-        className={cn(unavailable && "cursor-not-allowed opacity-50")}
+        className={cn(unavailable && "cursor-not-allowed opacity-50", className)}
         onClick={(event) => {
           if (busy || unavailable) {
             event.preventDefault();
@@ -603,6 +796,86 @@ export function DocumentCentre({
             const currentSource = currentVersion
               ? formatVersionSource(currentVersion, locale)
               : formatEligibilitySource(document, locale, copy.noData);
+            const versionRows = document.versions.map((version) => {
+              const derivedStatus = versionStatus(version);
+              const sponsorDownloadReason = currentVersionDownloadReason(
+                viewerRole,
+                version,
+                locale,
+              );
+              const formatLabel = formatDocumentFormatLabel(version.format, locale);
+              const approvalLabel = formatApprovalLabel(version, locale, copy.noData);
+              const createdAtLabel = formatDateTime(version.created_at, locale, copy.noData);
+              const reviewLabel = formatReviewStatusLabel(version.source_review_status, locale);
+              const metadataLabel = version.metadata_diff.length
+                ? version.metadata_diff
+                    .map((code) => formatMetadataDiffLabel(code, locale))
+                    .join(" · ")
+                : copy.noData;
+
+              return {
+                key: version.id,
+                cells: [
+                  <span
+                    key={`${version.id}-version`}
+                    className={cn(
+                      currentVersion?.id === version.id && "text-[var(--studio-accent)]",
+                    )}
+                  >
+                    v{version.version_no} · {formatLabel}
+                  </span>,
+                  `v${version.source_assessment_version_no}`,
+                  `v${version.source_scorecard_version_no}`,
+                  reviewLabel,
+                  formatDocumentStatusLabel(derivedStatus, locale),
+                  createdAtLabel,
+                  approvalLabel,
+                  <div key={`${version.id}-actions`} className="flex flex-wrap gap-2">
+                    <ActionButton
+                      variant="ghost"
+                      busy={busyKey !== null}
+                      label={copy.downloadNamed(typeLabel, formatLabel, version.version_no)}
+                      ariaLabel={copy.downloadVersionAria(typeLabel, version.version_no)}
+                      description={sponsorDownloadReason}
+                      descriptionId={`document-${document.type}-version-${version.version_no}-download-reason`}
+                      className="w-full sm:w-auto"
+                      onClick={() => void handleDownload(version.id)}
+                    />
+                  </div>,
+                ],
+                mobileTitle: `v${version.version_no} · ${formatLabel}`,
+                mobileFields: [
+                  { label: copy.sourceAssessment, value: `v${version.source_assessment_version_no}` },
+                  { label: copy.sourceScorecard, value: `v${version.source_scorecard_version_no}` },
+                  { label: copy.sourceReview, value: reviewLabel },
+                  {
+                    label: copy.status,
+                    value: formatDocumentStatusLabel(derivedStatus, locale),
+                  },
+                  { label: copy.createdAt, value: createdAtLabel },
+                  { label: copy.approval, value: approvalLabel },
+                  { label: copy.createdBy, value: version.created_by_subject_id },
+                  {
+                    label: copy.aiSections,
+                    value: formatAiSectionsCount(version.ai_assisted_sections.length, locale),
+                  },
+                  { label: copy.metadataChanges, value: metadataLabel },
+                  { label: copy.sha, value: version.sha256.slice(0, 16), mono: true },
+                ],
+                mobileActions: (
+                  <ActionButton
+                    variant="ghost"
+                    busy={busyKey !== null}
+                    label={copy.downloadNamed(typeLabel, formatLabel, version.version_no)}
+                    ariaLabel={copy.downloadVersionAria(typeLabel, version.version_no)}
+                    description={sponsorDownloadReason}
+                    descriptionId={`document-${document.type}-version-${version.version_no}-download-reason`}
+                    className="w-full justify-center"
+                    onClick={() => void handleDownload(version.id)}
+                  />
+                ),
+              };
+            });
             return (
               <section
                 key={document.type}
@@ -626,60 +899,135 @@ export function DocumentCentre({
                       {copy.versionsSource}: {currentSource}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-start gap-3">
-                    <ActionButton
-                      variant="secondary"
-                      busy={busyKey !== null}
-                      label={copy.generateMarkdown}
-                      description={
-                        document.eligibility.can_generate_markdown
-                          ? null
-                          : document.eligibility.markdown_reason
-                      }
-                      descriptionId={`document-${document.type}-markdown-reason`}
-                      onClick={() => void handleGenerate(document.type, "markdown")}
-                    />
-                    <ActionButton
-                      busy={busyKey !== null}
-                      label={copy.generatePdf}
-                      description={
-                        document.eligibility.can_generate_pdf
-                          ? null
-                          : document.eligibility.pdf_reason
-                      }
-                      descriptionId={`document-${document.type}-pdf-reason`}
-                      onClick={() => void handleGenerate(document.type, "pdf")}
-                    />
-                    {currentVersion ? (
-                      <ActionButton
-                        variant="ghost"
-                        busy={busyKey !== null}
-                        label={copy.download}
-                        ariaLabel={copy.downloadCurrentAria(typeLabel)}
-                        description={currentDownloadReason}
-                        descriptionId={`document-${document.type}-download-reason`}
-                        onClick={() => void handleDownload(currentVersion.id)}
-                      />
-                    ) : null}
-                    {isAssignedSponsor &&
-                    document.id &&
-                    currentVersion &&
-                    currentApproveReason !== copy.alreadyApproved ? (
-                      <ActionButton
-                        variant="secondary"
-                        busy={busyKey !== null}
-                        label={copy.approve}
-                        ariaLabel={copy.approveCurrentAria(typeLabel)}
-                        description={
-                          currentApproveReason === copy.alreadyApproved
-                            ? null
-                            : currentApproveReason
-                        }
-                        descriptionId={`document-${document.type}-approve-reason`}
-                        onClick={() => void handleApprove(document.id!)}
-                      />
-                    ) : null}
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold text-[var(--studio-foreground)]">
+                        {copy.prerequisites}
+                      </h4>
+                      <p className="text-sm text-[var(--studio-muted)]">
+                        {copy.prerequisitesDescription}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-start gap-3">
+                      <div className="min-w-[15rem] max-w-full">
+                        <ActionButton
+                          variant="secondary"
+                          busy={busyKey !== null}
+                          label={copy.generateMarkdown}
+                          description={
+                            document.eligibility.can_generate_markdown
+                              ? null
+                              : document.eligibility.markdown_reason
+                          }
+                          descriptionId={`document-${document.type}-markdown-reason`}
+                          className="w-full justify-center sm:w-auto"
+                          onClick={() => void handleGenerate(document.type, "markdown")}
+                        />
+                      </div>
+                      <div className="min-w-[15rem] max-w-full">
+                        <ActionButton
+                          busy={busyKey !== null}
+                          label={copy.generatePdf}
+                          description={
+                            document.eligibility.can_generate_pdf
+                              ? null
+                              : document.eligibility.pdf_reason
+                          }
+                          descriptionId={`document-${document.type}-pdf-reason`}
+                          className="w-full justify-center sm:w-auto"
+                          onClick={() => void handleGenerate(document.type, "pdf")}
+                        />
+                      </div>
+                      {currentVersion ? (
+                        <div className="min-w-[15rem] max-w-full">
+                          <ActionButton
+                            variant="ghost"
+                            busy={busyKey !== null}
+                            label={copy.downloadNamed(
+                              typeLabel,
+                              formatDocumentFormatLabel(currentVersion.format, locale),
+                              currentVersion.version_no,
+                            )}
+                            ariaLabel={copy.downloadCurrentAria(typeLabel)}
+                            description={currentDownloadReason}
+                            descriptionId={`document-${document.type}-download-reason`}
+                            className="w-full justify-center"
+                            onClick={() => void handleDownload(currentVersion.id)}
+                          />
+                        </div>
+                      ) : null}
+                      {isAssignedSponsor &&
+                      document.id &&
+                      currentVersion &&
+                      currentApproveReason !== copy.alreadyApproved ? (
+                        <div className="min-w-[15rem] max-w-full">
+                          <ActionButton
+                            variant="secondary"
+                            busy={busyKey !== null}
+                            label={copy.approveNamed(
+                              typeLabel,
+                              formatDocumentFormatLabel(currentVersion.format, locale),
+                              currentVersion.version_no,
+                            )}
+                            ariaLabel={copy.approveCurrentAria(typeLabel)}
+                            description={
+                              currentApproveReason === copy.alreadyApproved
+                                ? null
+                                : currentApproveReason
+                            }
+                            descriptionId={`document-${document.type}-approve-reason`}
+                            className="w-full justify-center"
+                            onClick={() => void handleApprove(document.id!)}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
+
+                  <details className="mt-4 rounded-xl border border-[var(--studio-border)] bg-[var(--studio-surface)]">
+                    <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-surface)]">
+                      <span className="font-medium text-[var(--studio-foreground)]">
+                        {copy.viewPrerequisites}
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className="text-xs uppercase tracking-[0.08em] text-[var(--studio-muted)]"
+                      >
+                        +
+                      </span>
+                    </summary>
+                    <div className="border-t border-[var(--studio-border)] p-4">
+                      <dl className="grid gap-3 sm:grid-cols-3">
+                        <EligibilityField
+                          label={copy.sourceAssessment}
+                          value={formatEligibilityValue(
+                            document.eligibility.source_assessment_version,
+                            "v",
+                            copy.noData,
+                          )}
+                        />
+                        <EligibilityField
+                          label={copy.sourceScorecard}
+                          value={formatEligibilityValue(
+                            document.eligibility.source_scorecard_version,
+                            "v",
+                            copy.noData,
+                          )}
+                        />
+                        <EligibilityField
+                          label={copy.sourceReview}
+                          value={formatEligibilityReviewStatus(
+                            document.eligibility.source_review_status,
+                            locale,
+                            copy.noData,
+                          )}
+                        />
+                      </dl>
+                    </div>
+                  </details>
                 </div>
 
                 {currentVersion ? (
@@ -712,93 +1060,21 @@ export function DocumentCentre({
                   <h4 className="text-sm font-semibold text-[var(--studio-foreground)]">
                     {copy.versionHistory}
                   </h4>
-                  {document.versions.length ? (
-                    document.versions.map((version) => {
-                      const derivedStatus = versionStatus(version);
-                      const sponsorDownloadReason = currentVersionDownloadReason(
-                        viewerRole,
-                        version,
-                        locale,
-                      );
-                      const versionSource = formatVersionSource(version, locale);
-                      return (
-                        <article
-                          key={version.id}
-                          className="rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-4"
-                        >
-                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p
-                                  className={cn(
-                                    "font-semibold text-[var(--studio-foreground)]",
-                                    currentVersion?.id === version.id &&
-                                      "text-[var(--studio-accent)]",
-                                  )}
-                                >
-                                  v{version.version_no}
-                                </p>
-                                <Badge tone="info">
-                                  {formatDocumentFormatLabel(version.format, locale)}
-                                </Badge>
-                                <Badge tone={badgeTone(derivedStatus)}>
-                                  {formatDocumentStatusLabel(derivedStatus, locale)}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-[var(--studio-muted)]">{versionSource}</p>
-                            </div>
-                            <ActionButton
-                              variant="ghost"
-                              busy={busyKey !== null}
-                              label={copy.download}
-                              ariaLabel={copy.downloadVersionAria(
-                                typeLabel,
-                                version.version_no,
-                              )}
-                              description={sponsorDownloadReason}
-                              descriptionId={`document-${document.type}-version-${version.version_no}-download-reason`}
-                              onClick={() => void handleDownload(version.id)}
-                            />
-                          </div>
-
-                          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                            <Info
-                              label={copy.createdAt}
-                              value={formatDateTime(version.created_at, locale, copy.noData)}
-                            />
-                            <Info label={copy.createdBy} value={version.created_by_subject_id} />
-                            <Info
-                              label={copy.approval}
-                              value={formatApprovalLabel(version, locale, copy.noData)}
-                            />
-                            <Info
-                              label={copy.aiSections}
-                              value={formatAiSectionsCount(
-                                version.ai_assisted_sections.length,
-                                locale,
-                              )}
-                            />
-                            <Info
-                              label={copy.metadataChanges}
-                              value={
-                                version.metadata_diff.length
-                                  ? version.metadata_diff
-                                      .map((code) => formatMetadataDiffLabel(code, locale))
-                                      .join(" · ")
-                                  : copy.noData
-                              }
-                            />
-                            <Info label={copy.sha} value={version.sha256.slice(0, 16)} mono />
-                          </div>
-                        </article>
-                      );
-                    })
-                  ) : (
-                    <EmptyState
-                      title={copy.emptyTitle}
-                      description={copy.emptyDescription}
-                    />
-                  )}
+                  <DocumentRecordTable
+                    caption={copy.versionHistory}
+                    headers={[
+                      copy.version,
+                      copy.sourceAssessment,
+                      copy.sourceScorecard,
+                      copy.sourceReview,
+                      copy.status,
+                      copy.createdAt,
+                      copy.approval,
+                      copy.actions,
+                    ]}
+                    rows={versionRows}
+                    empty={<EmptyState title={copy.emptyTitle} description={copy.emptyDescription} />}
+                  />
                 </div>
               </section>
             );

@@ -181,7 +181,7 @@ test("runs the real backend lifecycle and enforces sponsor/contributor visibilit
   });
   await page.goto("/studio");
 
-  const seededWorkspaceRow = page.getByRole("row").filter({ hasText: "Local Development Workspace" });
+  const seededWorkspaceRow = page.getByRole("row").filter({ hasText: "Espace de développement local" });
   await expect(seededWorkspaceRow).toBeVisible();
   await seededWorkspaceRow.getByRole("link", { name: "Ouvrir" }).click();
   await expect(page).toHaveURL(/\/studio\/workspace\?/);

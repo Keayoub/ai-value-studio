@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DataTable } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -27,6 +26,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { getPublicRuntimeConfig } from "@/features/auth/runtime";
 import { LabeledField } from "@/features/studio/shared";
 import type { Locale } from "@/features/studio/wizard/copy";
+import { cn } from "@/lib/cn";
 
 const runtimeConfig = getPublicRuntimeConfig(process.env);
 
@@ -75,6 +75,8 @@ type ScorecardCopy = {
   readiness: string;
   riskProfile: string;
   overallConfidence: string;
+  currentVersion: string;
+  recalculatedAt: string;
   formula: string;
   sourceSnapshot: string;
   weights: string;
@@ -99,6 +101,12 @@ type ScorecardCopy = {
   historyDate: string;
   historyOverride: string;
   historyRisk: string;
+  inspectRadarData: string;
+  inspectRadarDescription: string;
+  inspectBvaData: string;
+  inspectBvaDescription: string;
+  scoreOutOfFive: string;
+  versionBadge: string;
   sensitivityLever: Record<string, string>;
   dimensions: Record<ScoreDimension, string>;
   categories: Record<string, string>;
@@ -160,6 +168,8 @@ const scorecardCopy: Record<Locale, ScorecardCopy> = {
     readiness: "Readiness moyenne",
     riskProfile: "Profil de risque",
     overallConfidence: "Confiance globale",
+    currentVersion: "Version courante",
+    recalculatedAt: "Recalculé le",
     formula: "Formule",
     sourceSnapshot: "Snapshot source",
     weights: "Poids actifs",
@@ -184,6 +194,12 @@ const scorecardCopy: Record<Locale, ScorecardCopy> = {
     historyDate: "Date",
     historyOverride: "Surcharge",
     historyRisk: "Risque",
+    inspectRadarData: "Voir les données radar",
+    inspectRadarDescription: "Notes, poids, sources et justifications par dimension",
+    inspectBvaData: "Voir les données BVA",
+    inspectBvaDescription: "Entrées de valeur, résultats et KPI de la version courante",
+    scoreOutOfFive: "Score sur 5",
+    versionBadge: "Version",
     sensitivityLever: {
       time_saved_hours: "Temps gagné",
       error_reduction_rate: "Réduction d’erreur",
@@ -263,6 +279,8 @@ const scorecardCopy: Record<Locale, ScorecardCopy> = {
     readiness: "Average readiness",
     riskProfile: "Risk profile",
     overallConfidence: "Overall confidence",
+    currentVersion: "Current version",
+    recalculatedAt: "Recalculated on",
     formula: "Formula",
     sourceSnapshot: "Source snapshot",
     weights: "Active weights",
@@ -287,6 +305,12 @@ const scorecardCopy: Record<Locale, ScorecardCopy> = {
     historyDate: "Date",
     historyOverride: "Override",
     historyRisk: "Risk",
+    inspectRadarData: "Inspect radar data",
+    inspectRadarDescription: "Scores, weights, sources, and justifications by dimension",
+    inspectBvaData: "Inspect BVA data",
+    inspectBvaDescription: "Value inputs, outputs, and KPI details for the current version",
+    scoreOutOfFive: "Score out of 5",
+    versionBadge: "Version",
     sensitivityLever: {
       time_saved_hours: "Time saved",
       error_reduction_rate: "Error reduction",
@@ -555,12 +579,56 @@ export function UseCaseScorecard({
   }
 
   const current = bundle.current_scorecard;
-  const scenarioRows = bundle.value_assessment.scenarios.map((scenario) => [
-    labels[scenario.name as keyof Pick<ScorecardCopy, "baseline" | "conservative" | "optimistic">] ?? scenario.name,
-    formatCurrency(scenario.net_annual_value, locale, bundle.value_assessment.currency),
-    formatCurrency(scenario.npv_3y, locale, bundle.value_assessment.currency),
-    scenario.payback_months === null ? labels.notReached : formatMonths(scenario.payback_months, locale),
-  ]);
+  const scenarioRecords = bundle.value_assessment.scenarios.map((scenario) => {
+    const scenarioLabel =
+      labels[
+        scenario.name as keyof Pick<
+          ScorecardCopy,
+          "baseline" | "conservative" | "optimistic"
+        >
+      ] ?? scenario.name;
+    const netAnnualValue = formatCurrency(
+      scenario.net_annual_value,
+      locale,
+      bundle.value_assessment.currency,
+    );
+    const npv3y = formatCurrency(
+      scenario.npv_3y,
+      locale,
+      bundle.value_assessment.currency,
+    );
+    const payback =
+      scenario.payback_months === null
+        ? labels.notReached
+        : formatMonths(scenario.payback_months, locale);
+
+    return {
+      key: scenario.name,
+      scenarioLabel,
+      netAnnualValue,
+      npv3y,
+      payback,
+    };
+  });
+  const dimensionRecords =
+    current?.dimensions.map((dimension) => ({
+      key: dimension.id,
+      dimensionLabel: labels.dimensions[dimension.dimension],
+      weight: `${Math.round(dimension.weight * 100)}%`,
+      score: `${dimension.score} / 5`,
+      confidence: titleCase(dimension.confidence),
+      source: dimension.source,
+      justification: `${dimension.justification}${dimension.override_reason ? ` (${dimension.override_reason})` : ""}`,
+    })) ?? [];
+  const historyRecords = bundle.history.map((entry) => ({
+    key: entry.id,
+    version: `v${entry.version}`,
+    createdAt: formatDate(entry.created_at, locale),
+    priorityScore: entry.priority_score.toFixed(3),
+    category: labels.categories[entry.category] ?? entry.category,
+    risk: labels.risks[entry.risk_profile] ?? entry.risk_profile,
+    override: entry.manual_override ? (entry.override_reason ?? labels.override) : "—",
+  }));
 
   return (
     <section className="space-y-6">
@@ -619,25 +687,192 @@ export function UseCaseScorecard({
             </h3>
             {current ? (
               <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <MetricCard label={labels.priorityScore} value={current.priority_score.toFixed(3)} />
-                  <MetricCard label={labels.category} value={labels.categories[current.category] ?? current.category} />
-                  <MetricCard label={labels.readiness} value={current.readiness_average.toFixed(3)} />
-                  <MetricCard label={labels.riskProfile} value={labels.risks[current.risk_profile] ?? current.risk_profile} />
+                <div className="rounded-3xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--studio-muted)]">
+                        {labels.scoreOutOfFive}
+                      </p>
+                      <p
+                        className="mt-2 text-4xl font-semibold text-[var(--studio-foreground)]"
+                        style={{ fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {current.priority_score.toFixed(3)}
+                        <span className="text-lg text-[var(--studio-muted)]"> / 5</span>
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone="info">
+                        {labels.versionBadge} {current.version}
+                      </Badge>
+                      {current.manual_override ? <Badge tone="warning">{labels.override}</Badge> : null}
+                    </div>
+                  </div>
+                  <dl className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <SummaryField
+                      label={labels.category}
+                      value={labels.categories[current.category] ?? current.category}
+                    />
+                    <SummaryField
+                      label={labels.overallConfidence}
+                      value={titleCase(current.confidence_level)}
+                    />
+                    <SummaryField
+                      label={labels.readiness}
+                      value={current.readiness_average.toFixed(3)}
+                      numeric
+                    />
+                    <SummaryField
+                      label={labels.riskProfile}
+                      value={labels.risks[current.risk_profile] ?? current.risk_profile}
+                    />
+                    <SummaryField
+                      label={labels.currentVersion}
+                      value={`v${current.version}`}
+                    />
+                    <SummaryField
+                      label={labels.recalculatedAt}
+                      value={formatDate(current.updated_at, locale)}
+                    />
+                  </dl>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <GaugeChart
-                    locale={locale}
-                    value={current.priority_score}
-                    title={labels.gauge}
-                    subtitle={labels.overallConfidence}
-                    confidence={current.confidence_level}
-                  />
-                  <RadarChart
-                    dimensions={current.dimensions}
-                    labels={labels.dimensions}
-                    title={labels.radar}
-                  />
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                    <GaugeChart
+                      locale={locale}
+                      value={current.priority_score}
+                      title={labels.gauge}
+                      subtitle={labels.overallConfidence}
+                      confidence={current.confidence_level}
+                    />
+                    <RadarChart
+                      dimensions={current.dimensions}
+                      labels={labels.dimensions}
+                      title={labels.radar}
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <DisclosureCard
+                      title={labels.inspectRadarData}
+                      description={labels.inspectRadarDescription}
+                      defaultOpen
+                    >
+                      <RecordTable
+                        caption={labels.radar}
+                        headers={[
+                          labels.dataTableDimension,
+                          labels.dataTableWeight,
+                          labels.dataTableScore,
+                          labels.dataTableConfidence,
+                          labels.dataTableSource,
+                          labels.dataTableJustification,
+                        ]}
+                        rows={dimensionRecords.map((dimension) => ({
+                          key: dimension.key,
+                          cells: [
+                            dimension.dimensionLabel,
+                            <NumericValue key={`${dimension.key}-weight`}>
+                              {dimension.weight}
+                            </NumericValue>,
+                            <NumericValue key={`${dimension.key}-score`}>
+                              {dimension.score}
+                            </NumericValue>,
+                            dimension.confidence,
+                            dimension.source,
+                            <span key={`${dimension.key}-justification`} className="block max-w-lg">
+                              {dimension.justification}
+                            </span>,
+                          ],
+                          mobileTitle: dimension.dimensionLabel,
+                          mobileFields: [
+                            { label: labels.dataTableWeight, value: dimension.weight, numeric: true },
+                            { label: labels.dataTableScore, value: dimension.score, numeric: true },
+                            { label: labels.dataTableConfidence, value: dimension.confidence },
+                            { label: labels.dataTableSource, value: dimension.source },
+                            {
+                              label: labels.dataTableJustification,
+                              value: dimension.justification,
+                            },
+                          ],
+                        }))}
+                        empty={
+                          <p className="text-sm text-[var(--studio-muted)]">
+                            {labels.emptyDescription}
+                          </p>
+                        }
+                      />
+                    </DisclosureCard>
+                    <DisclosureCard
+                      title={labels.inspectBvaData}
+                      description={labels.inspectBvaDescription}
+                    >
+                      <dl className="grid gap-3 sm:grid-cols-2">
+                        <SummaryField
+                          label={labels.annualVolume}
+                          value={formatNumber(bundle.value_assessment.annual_volume, locale)}
+                          numeric
+                        />
+                        <SummaryField
+                          label={labels.timeSavedHours}
+                          value={formatNumber(bundle.value_assessment.time_saved_hours, locale, 2)}
+                          numeric
+                        />
+                        <SummaryField
+                          label={labels.hourlyCost}
+                          value={formatCurrency(
+                            bundle.value_assessment.hourly_cost,
+                            locale,
+                            bundle.value_assessment.currency,
+                          )}
+                          numeric
+                        />
+                        <SummaryField
+                          label={labels.errorReductionRate}
+                          value={`${formatNumber(bundle.value_assessment.error_reduction_rate, locale, 2)}%`}
+                          numeric
+                        />
+                        <SummaryField
+                          label={labels.netAnnualValue}
+                          value={formatCurrency(
+                            bundle.value_assessment.net_annual_value,
+                            locale,
+                            bundle.value_assessment.currency,
+                          )}
+                          numeric
+                        />
+                        <SummaryField
+                          label={labels.npv3y}
+                          value={formatCurrency(
+                            bundle.value_assessment.npv_3y,
+                            locale,
+                            bundle.value_assessment.currency,
+                          )}
+                          numeric
+                        />
+                        <SummaryField
+                          label={labels.payback}
+                          value={
+                            bundle.value_assessment.payback_months === null
+                              ? labels.notReached
+                              : formatMonths(bundle.value_assessment.payback_months, locale)
+                          }
+                          numeric={bundle.value_assessment.payback_months !== null}
+                        />
+                        <SummaryField
+                          label={labels.primaryKpi}
+                          value={bundle.value_assessment.primary_kpi}
+                        />
+                        <SummaryField
+                          label={labels.kpiTarget}
+                          value={bundle.value_assessment.kpi_target}
+                        />
+                        <SummaryField
+                          label={labels.confidence}
+                          value={titleCase(bundle.value_assessment.confidence)}
+                        />
+                      </dl>
+                    </DisclosureCard>
+                  </div>
                 </div>
               </>
             ) : (
@@ -668,11 +903,32 @@ export function UseCaseScorecard({
             ))}
           </div>
           <div className="mt-4">
-            <DataTable
+            <RecordTable
               caption={labels.scenariosCaption}
-              headers={[labels.scenarioComparison, labels.netAnnualValue, labels.npv3y, labels.payback]}
-              rows={scenarioRows}
-              empty={<p className="text-sm text-[var(--studio-muted)]">{labels.emptyDescription}</p>}
+              headers={[
+                labels.scenarioComparison,
+                labels.netAnnualValue,
+                labels.npv3y,
+                labels.payback,
+              ]}
+              rows={scenarioRecords.map((scenario) => ({
+                key: scenario.key,
+                cells: [
+                  scenario.scenarioLabel,
+                  <NumericValue key={`${scenario.key}-net`}>{scenario.netAnnualValue}</NumericValue>,
+                  <NumericValue key={`${scenario.key}-npv`}>{scenario.npv3y}</NumericValue>,
+                  <NumericValue key={`${scenario.key}-payback`}>{scenario.payback}</NumericValue>,
+                ],
+                mobileTitle: scenario.scenarioLabel,
+                mobileFields: [
+                  { label: labels.netAnnualValue, value: scenario.netAnnualValue, numeric: true },
+                  { label: labels.npv3y, value: scenario.npv3y, numeric: true },
+                  { label: labels.payback, value: scenario.payback, numeric: true },
+                ],
+              }))}
+              empty={
+                <p className="text-sm text-[var(--studio-muted)]">{labels.emptyDescription}</p>
+              }
             />
           </div>
         </Card>
@@ -726,29 +982,46 @@ export function UseCaseScorecard({
               </div>
             </div>
             <div className="space-y-4">
-              <DataTable
-                caption={labels.radar}
-                headers={[
-                  labels.dataTableDimension,
-                  labels.dataTableWeight,
-                  labels.dataTableScore,
-                  labels.dataTableConfidence,
-                  labels.dataTableSource,
-                  labels.dataTableJustification,
-                ]}
-                rows={current.dimensions.map((dimension) => [
-                  labels.dimensions[dimension.dimension],
-                  `${Math.round(dimension.weight * 100)}%`,
-                  dimension.score,
-                  titleCase(dimension.confidence),
-                  dimension.source,
-                  <span key={`${dimension.id}-justification`} className="block max-w-lg">
-                    {dimension.justification}
-                    {dimension.override_reason ? ` (${dimension.override_reason})` : ""}
-                  </span>,
-                ])}
-                empty={<p className="text-sm text-[var(--studio-muted)]">{labels.emptyDescription}</p>}
-              />
+              <div className="rounded-2xl border border-[var(--studio-border)] p-4">
+                <h3 className="font-semibold text-[var(--studio-foreground)]">
+                  {labels.valueInputs}
+                </h3>
+                <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <SummaryField
+                    label={labels.averageErrorCost}
+                    value={formatCurrency(
+                      bundle.value_assessment.average_error_cost,
+                      locale,
+                      bundle.value_assessment.currency,
+                    )}
+                    numeric
+                  />
+                  <SummaryField
+                    label={labels.revenueCapacityValue}
+                    value={formatCurrency(
+                      bundle.value_assessment.revenue_capacity_value,
+                      locale,
+                      bundle.value_assessment.currency,
+                    )}
+                    numeric
+                  />
+                  <SummaryField
+                    label={labels.estimatedAnnualCost}
+                    value={formatCurrency(
+                      bundle.value_assessment.estimated_annual_cost,
+                      locale,
+                      bundle.value_assessment.currency,
+                    )}
+                    numeric
+                  />
+                  <SummaryField
+                    label={labels.timeToImpactMonths}
+                    value={formatMonths(bundle.value_assessment.time_to_impact_months, locale)}
+                    numeric
+                  />
+                  <SummaryField label={labels.currency} value={bundle.value_assessment.currency} />
+                </dl>
+              </div>
             </div>
           </div>
         </Card>
@@ -756,7 +1029,7 @@ export function UseCaseScorecard({
 
       <Card>
         <CardHeader title={labels.history} />
-        <DataTable
+        <RecordTable
           caption={labels.historyCaption}
           headers={[
             labels.historyVersion,
@@ -766,14 +1039,25 @@ export function UseCaseScorecard({
             labels.historyRisk,
             labels.historyOverride,
           ]}
-          rows={bundle.history.map((entry) => [
-            entry.version,
-            formatDate(entry.created_at, locale),
-            entry.priority_score.toFixed(3),
-            labels.categories[entry.category] ?? entry.category,
-            labels.risks[entry.risk_profile] ?? entry.risk_profile,
-            entry.manual_override ? (entry.override_reason ?? labels.override) : "—",
-          ])}
+          rows={historyRecords.map((entry) => ({
+            key: entry.key,
+            cells: [
+              entry.version,
+              entry.createdAt,
+              <NumericValue key={`${entry.key}-score`}>{entry.priorityScore}</NumericValue>,
+              entry.category,
+              entry.risk,
+              entry.override,
+            ],
+            mobileTitle: entry.version,
+            mobileFields: [
+              { label: labels.historyDate, value: entry.createdAt },
+              { label: labels.priorityScore, value: entry.priorityScore, numeric: true },
+              { label: labels.category, value: entry.category },
+              { label: labels.historyRisk, value: entry.risk },
+              { label: labels.historyOverride, value: entry.override },
+            ],
+          }))}
           empty={<p className="text-sm text-[var(--studio-muted)]">{labels.emptyDescription}</p>}
         />
       </Card>
@@ -853,12 +1137,210 @@ function NumberField({
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function SummaryField({
+  label,
+  value,
+  numeric = false,
+}: {
+  label: string;
+  value: ReactNode;
+  numeric?: boolean;
+}) {
   return (
-    <div className="rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-4">
-      <p className="text-sm font-medium text-[var(--studio-muted)]">{label}</p>
-      <p className="mt-2 text-xl font-semibold text-[var(--studio-foreground)]">{value}</p>
+    <div className="min-w-0">
+      <dt className="text-xs uppercase tracking-[0.08em] text-[var(--studio-muted)]">{label}</dt>
+      <dd
+        className={cn(
+          "mt-1 text-sm font-medium text-[var(--studio-foreground)]",
+          numeric && "tabular-nums",
+        )}
+        style={numeric ? { fontVariantNumeric: "tabular-nums" } : undefined}
+      >
+        {value}
+      </dd>
     </div>
+  );
+}
+
+function DisclosureCard({
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  description: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details
+      className="rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface)]"
+      open={defaultOpen}
+    >
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-surface)]">
+        <span>
+          <span className="block font-semibold text-[var(--studio-foreground)]">{title}</span>
+          <span className="mt-1 block text-sm text-[var(--studio-muted)]">{description}</span>
+        </span>
+        <span
+          aria-hidden="true"
+          className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--studio-muted)]"
+        >
+          +
+        </span>
+      </summary>
+      <div className="border-t border-[var(--studio-border)] p-4">{children}</div>
+    </details>
+  );
+}
+
+function NumericValue({ children }: { children: ReactNode }) {
+  return (
+    <span className="tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+      {children}
+    </span>
+  );
+}
+
+type RecordTableRow = {
+  key: string;
+  cells: ReactNode[];
+  mobileTitle: ReactNode;
+  mobileFields: Array<{ label: string; value: ReactNode; numeric?: boolean }>;
+};
+
+function RecordTable({
+  caption,
+  headers,
+  rows,
+  empty,
+}: {
+  caption: string;
+  headers: string[];
+  rows: RecordTableRow[];
+  empty: ReactNode;
+}) {
+  const desktopTableRef = useRef<HTMLDivElement | null>(null);
+  const [desktopTableScrollable, setDesktopTableScrollable] = useState(false);
+
+  useEffect(() => {
+    const element = desktopTableRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateScrollable = () => {
+      setDesktopTableScrollable(element.scrollWidth > element.clientWidth + 1);
+    };
+
+    updateScrollable();
+    window.addEventListener("resize", updateScrollable);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener("resize", updateScrollable);
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateScrollable();
+    });
+    observer.observe(element);
+    const table = element.querySelector("table");
+    if (table) {
+      observer.observe(table);
+    }
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateScrollable);
+    };
+  }, [rows.length]);
+
+  if (!rows.length) {
+    return <>{empty}</>;
+  }
+
+  return (
+    <>
+      <div
+        ref={desktopTableRef}
+        tabIndex={desktopTableScrollable ? 0 : undefined}
+        aria-label={desktopTableScrollable ? caption : undefined}
+        className="hidden overflow-x-auto rounded-2xl border border-[var(--studio-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-brand)] md:block"
+      >
+        <table className="min-w-full border-collapse text-sm">
+          <caption className="sr-only">{caption}</caption>
+          <thead className="bg-[var(--studio-surface-subtle)] text-left text-[var(--studio-muted)]">
+            <tr>
+              {headers.map((header) => (
+                <th key={header} scope="col" className="px-4 py-3 font-medium">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr
+                key={row.key}
+                className={cn(
+                  rowIndex < rows.length - 1 && "border-b border-[var(--studio-border)]",
+                )}
+              >
+                {row.cells.map((cell, cellIndex) =>
+                  cellIndex === 0 ? (
+                    <th
+                      key={`${row.key}-${cellIndex}`}
+                      scope="row"
+                      className="px-4 py-3 text-left font-semibold text-[var(--studio-foreground)]"
+                    >
+                      {cell}
+                    </th>
+                  ) : (
+                    <td
+                      key={`${row.key}-${cellIndex}`}
+                      className="px-4 py-3 align-top text-[var(--studio-foreground)]"
+                    >
+                      {cell}
+                    </td>
+                  ),
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="space-y-3 md:hidden">
+        {rows.map((row) => (
+          <article
+            key={row.key}
+            className="rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4"
+          >
+            <div className="font-semibold text-[var(--studio-foreground)]">{row.mobileTitle}</div>
+            <dl className="mt-3 space-y-3">
+              {row.mobileFields.map((field) => (
+                <div key={`${row.key}-${field.label}`}>
+                  <dt className="text-xs uppercase tracking-[0.08em] text-[var(--studio-muted)]">
+                    {field.label}
+                  </dt>
+                  <dd
+                    className={cn(
+                      "mt-1 text-sm text-[var(--studio-foreground)]",
+                      field.numeric && "tabular-nums",
+                    )}
+                    style={
+                      field.numeric ? { fontVariantNumeric: "tabular-nums" } : undefined
+                    }
+                  >
+                    {field.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -1030,6 +1512,12 @@ function formatCurrency(value: number, locale: Locale, currency: string) {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatNumber(value: number, locale: Locale, maximumFractionDigits = 0) {
+  return new Intl.NumberFormat(locale === "fr" ? "fr-FR" : "en-US", {
+    maximumFractionDigits,
   }).format(value);
 }
 

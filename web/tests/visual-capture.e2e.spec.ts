@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
   bootstrapUseCase,
@@ -30,11 +30,22 @@ const REVIEW_HEADING = /Revue avant soumission/;
 const SCORECARD_TITLE = /Scorecard de valeur et de priorité/;
 const DOCUMENT_CENTRE_TITLE = /Centre documentaire/;
 const PORTFOLIO_TITLE = /Matrice portefeuille IA/;
-const DEV_BANNER = /LOCAL DEVELOPMENT — AUTH DISABLED/;
+const DEV_BANNER =
+  /LOCAL DEVELOPMENT — AUTH DISABLED|DÉVELOPPEMENT LOCAL — AUTH DÉSACTIVÉE/;
 const EXECUTIVE_BRIEF = /Note exécutive/;
+const INSPECT_BVA_DATA = /Voir les données BVA|Inspect BVA data/;
+const LOCAL_CONSULTANT_NAME = "Consultant local";
+const LOCAL_SPONSOR_NAME = "Sponsor local";
+const SEEDED_WORKSPACE_NAME_TRANSLATIONS: Record<string, string> = {
+  "Local Development Workspace": "Espace de développement local",
+  "Local Demo Workspace": "Espace de démonstration local",
+};
 const CAPTURE_VIEWPORTS = [
   ["desktop", { width: 1440, height: 900 }],
-  ["mobile", { width: 390, height: 844 }],
+  ["mobile-320", { width: 320, height: 844 }],
+  ["mobile-375", { width: 375, height: 844 }],
+  ["mobile-390", { width: 390, height: 844 }],
+  ["mobile-430", { width: 430, height: 932 }],
 ] as const;
 type SeededCase = {
   programName: string;
@@ -53,6 +64,32 @@ function numberPattern(value: number) {
     return new RegExp(digits);
   }
   return new RegExp(`${digits.slice(0, -3)}[\\s,.  ]?${digits.slice(-3)}`);
+}
+
+function localizeSeededWorkspaceName(workspaceName: string) {
+  const localizedWorkspaceName = SEEDED_WORKSPACE_NAME_TRANSLATIONS[workspaceName];
+  expect(localizedWorkspaceName, `Unexpected seeded workspace fixture name: ${workspaceName}`).toBeTruthy();
+  return localizedWorkspaceName ?? workspaceName;
+}
+
+async function hideNextDevIndicator(page: Page) {
+  await page.evaluate(() => {
+    if (document.getElementById("visual-capture-hide-next-dev-indicator")) {
+      return;
+    }
+
+    const style = document.createElement("style");
+    style.id = "visual-capture-hide-next-dev-indicator";
+    style.textContent = `
+      nextjs-portal,
+      [data-nextjs-toast],
+      .nextjs-toast,
+      .dev-tools-indicator-menu {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+  });
 }
 
 const SEEDED_CASES = [
@@ -98,8 +135,133 @@ async function capture(page: Page, order: string, slug: string, assertLoaded: ()
   for (const [viewport, size] of CAPTURE_VIEWPORTS) {
     await page.setViewportSize(size);
     await assertLoaded();
+    await hideNextDevIndicator(page);
     await page.screenshot({ path: join(CAPTURE_DIR!, `${order}-${slug}-${viewport}.png`), fullPage: true });
   }
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const metrics = await page.evaluate(() => ({
+    bodyWidth: document.body.scrollWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    innerWidth: window.innerWidth,
+  }));
+
+  expect(metrics.bodyWidth).toBeLessThanOrEqual(metrics.innerWidth + 1);
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.innerWidth + 1);
+}
+
+async function expectNoQuadrantOverlayCollision(page: Page) {
+  const result = await page.evaluate(() => {
+    const frame = document.querySelector("[data-portfolio-matrix-frame]");
+    if (!(frame instanceof HTMLElement)) {
+      return { foundFrame: false, overlaps: ["missing-frame"], outOfBounds: ["missing-frame"] };
+    }
+    const frameRect = frame.getBoundingClientRect();
+    const labels = Array.from(document.querySelectorAll("[data-portfolio-quadrant]"));
+    const rects = labels.map((label) => {
+      const rect = label.getBoundingClientRect();
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+      };
+    });
+
+    const overlaps: string[] = [];
+    for (let index = 0; index < rects.length; index += 1) {
+      for (let otherIndex = index + 1; otherIndex < rects.length; otherIndex += 1) {
+        const current = rects[index];
+        const other = rects[otherIndex];
+        const intersects =
+          current.left < other.right &&
+          current.right > other.left &&
+          current.top < other.bottom &&
+          current.bottom > other.top;
+        if (intersects) {
+          overlaps.push(`${index}-${otherIndex}`);
+        }
+      }
+    }
+
+    const outOfBounds = rects.flatMap((rect, index) => {
+      const failures: string[] = [];
+      if (rect.left < frameRect.left || rect.right > frameRect.right) {
+        failures.push(`${index}:x`);
+      }
+      if (rect.top < frameRect.top || rect.bottom > frameRect.bottom) {
+        failures.push(`${index}:y`);
+      }
+      return failures;
+    });
+
+    return { foundFrame: true, overlaps, outOfBounds };
+  });
+
+  expect(result.foundFrame).toBe(true);
+  expect(result.overlaps).toEqual([]);
+  expect(result.outOfBounds).toEqual([]);
+}
+
+async function expectMobileWizardFormOrdering(page: Page) {
+  await page.setViewportSize({ width: 320, height: 844 });
+
+  const activeField = page.getByLabel("Équipe concernée");
+  const currentStep = page.locator("[aria-current='step']").first();
+  await expect(activeField).toBeVisible();
+  await expect(currentStep).toBeVisible();
+
+  const position = async (selector: Locator) =>
+    selector.evaluate((node) => node.getBoundingClientRect().top + window.scrollY);
+
+  await expect.poll(async () => {
+    const fieldTop = await position(activeField);
+    const kickstartTop = await position(page.getByText("Kickstart IA", { exact: true }).first());
+    const navigationTop = await position(
+      page.getByRole("heading", { name: "Navigation", exact: true }),
+    );
+    const statusTop = await position(page.getByText("Statut", { exact: true }).first());
+    return fieldTop < kickstartTop && fieldTop < navigationTop && fieldTop < statusTop;
+  }).toBe(true);
+}
+
+async function expectMobilePrimaryNavigationDrawer(page: Page) {
+  await page.setViewportSize({ width: 375, height: 844 });
+
+  const trigger = page.getByRole("button", { name: /Ouvrir la navigation|Open navigation/ });
+  await expect(trigger).toBeVisible();
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("Enter");
+
+  const drawer = page.getByRole("dialog", { name: /Navigation principale|Primary navigation/ });
+  const closeButton = page.getByRole("button", {
+    name: /Fermer la navigation|Close navigation/,
+  });
+  const drawerNav = drawer.getByRole("navigation", {
+    name: /Navigation principale|Primary navigation/,
+  });
+  const currentRouteLink = drawerNav.getByRole("link", {
+    name: /Connexion et espaces|Sign-in and workspaces/,
+  });
+
+  await expect(drawer).toBeVisible();
+  await expect(closeButton).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(drawer).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(currentRouteLink).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByRole("dialog", { name: /Navigation principale|Primary navigation/ })).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 }
 
 test("captures eight seeded studio screens when opted in", async ({ page, request }) => {
@@ -109,7 +271,7 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
 
   const consultant = await fetchDevIdentityHeaders(request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
   const seededAt = Date.now();
@@ -125,6 +287,27 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
     });
   }
   const [main, ...portfolioCases] = seededCases;
+  await fetchDevIdentityHeaders(request, {
+    subjectId: "sponsor",
+    displayName: LOCAL_SPONSOR_NAME,
+    role: "Sponsor",
+  });
+  const workspaceAdmin = await fetchDevIdentityHeaders(request, {
+    subjectId: "workspace-admin",
+    displayName: "Administrateur local",
+    role: "WorkspaceAdmin",
+  });
+  const workspacesResponse = await request.get("http://127.0.0.1:8010/api/v1/workspaces", {
+    headers: workspaceAdmin.headers,
+  });
+  expect(workspacesResponse.ok()).toBeTruthy();
+  const workspaces = (await workspacesResponse.json()) as {
+    items: Array<{ id: string; name: string }>;
+  };
+  const seededWorkspace = workspaces.items.find((item) => item.id === main.bootstrap.workspaceId);
+  expect(seededWorkspace).toBeTruthy();
+  const seededWorkspaceName = seededWorkspace?.name ?? "";
+  const localizedWorkspaceName = localizeSeededWorkspaceName(seededWorkspaceName);
   await setWorkspaceDefaultLanguage(request, {
     workspaceId: main.bootstrap.workspaceId,
     defaultLanguage: "fr-CA",
@@ -133,24 +316,34 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
   await proxyApiRequests(page, request);
   await selectDevIdentity(page, request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
 
   await page.goto("/studio");
+  await expectMobilePrimaryNavigationDrawer(page);
   await capture(page, "01", "dev-identity", async () => {
     await expect(page.getByText(DEV_BANNER)).toBeVisible();
     await expect(page.getByRole("heading", { name: /Piloter les espaces/i })).toBeVisible();
-    await expect(page.getByText("Local Consultant", { exact: true }).last()).toBeVisible();
+    await expect(page.getByText(LOCAL_CONSULTANT_NAME, { exact: true }).last()).toBeVisible();
+    await expect(page.getByText(localizedWorkspaceName, { exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Parcours studio" })).toHaveCount(0);
+    const desktopNavigation = (page.viewportSize()?.width ?? 0) >= 1024;
+    await expect(page.locator("nav[aria-label='Navigation principale']:visible")).toHaveCount(desktopNavigation ? 1 : 0);
+    await expect(page.locator("[aria-current='page']:visible")).toHaveCount(desktopNavigation ? 1 : 0);
+    await expect(page.getByText("Session locale")).toHaveCount(0);
+    await expect(page.getByText("Local Consultant", { exact: true })).toHaveCount(0);
+    await expect(page.getByText(seededWorkspaceName, { exact: true })).toHaveCount(0);
   });
 
   await page.goto(`/studio/workspace?workspaceId=${main.bootstrap.workspaceId}`);
   await capture(page, "02", "workspace-home", async () => {
-    await expect(page.getByRole("heading", { name: "Local Development Workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: localizedWorkspaceName })).toBeVisible();
     await expect(page.getByText("Langue", { exact: true })).toBeVisible();
     await expect(page.getByText("Programmes de l’espace", { exact: true })).toBeVisible();
     await expect(page.getByText(main.seed.programName, { exact: false }).first()).toBeVisible();
     await expect(page.getByText(main.seed.strategicObjective, { exact: false })).toBeVisible();
+    await expect(page.getByText(seededWorkspaceName, { exact: true })).toHaveCount(0);
   });
 
   await openUseCase(page, main.bootstrap);
@@ -162,6 +355,7 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
   await page.getByRole("button", { name: /Créer un brouillon d’évaluation|Create draft assessment/ }).click();
   await page.getByLabel("Équipe concernée").fill("Indemnisation auto");
   await page.getByRole("button", { name: /Continuer|Continue/ }).click();
+  await expectMobileWizardFormOrdering(page);
   await capture(page, "04", "wizard-validation", async () => {
     await expect(page.getByLabel("Processus cible")).toHaveAttribute("aria-invalid", "true");
     await expect(page.getByRole("alert").first()).toBeVisible();
@@ -182,7 +376,12 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
 
   await page.getByLabel("Recommandation préliminaire — Pilot — valider en conditions réelles").check();
   await page.getByLabel("Notes de revue").fill("Pilote sinistres auto centré sur le tri documentaire initial.");
+  const submittedAssessment = page.waitForResponse((response) =>
+    /\/assessments\/[^/]+\/submit$/.test(new URL(response.url()).pathname) &&
+    response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: /Soumettre pour revue|Submit for review/ }).click();
+  expect((await submittedAssessment).ok()).toBe(true);
   const mainScorecard = (await saveValueAssessmentAndRecalculateScorecard(
     request,
     main.bootstrap,
@@ -192,7 +391,17 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
   await page.reload();
   await capture(page, "06", "scorecard", async () => {
     await expect(page.getByText(SCORECARD_TITLE)).toBeVisible();
-    await expect(page.getByText(numberPattern(mainScorecard.value_assessment.net_annual_value)).first()).toBeVisible();
+    const bvaDisclosure = page.locator("details").filter({
+      has: page.getByText(INSPECT_BVA_DATA),
+    }).first();
+    await expect(bvaDisclosure).toBeVisible();
+    if (!(await bvaDisclosure.evaluate((node) => node.hasAttribute("open")))) {
+      await bvaDisclosure.locator("summary").click();
+    }
+    const netAnnualValue = bvaDisclosure
+      .locator("dt", { hasText: /Valeur nette annuelle|Net annual value/ })
+      .locator("xpath=following-sibling::dd[1]");
+    await expect(netAnnualValue).toContainText(numberPattern(mainScorecard.value_assessment.net_annual_value));
     await expect(page.getByText(mainScorecard.current_scorecard?.category ?? "").first()).toBeVisible();
     await expect(page.getByRole("img", { name: /Jauge du priority score/i })).toBeVisible();
     await expect(page.getByRole("img", { name: /Radar des six dimensions/ })).toBeVisible();
@@ -208,9 +417,34 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
   await page.goto(`/studio/portfolio?workspaceId=${main.bootstrap.workspaceId}`);
   await capture(page, "07", "portfolio-matrix", async () => {
     await expect(page.getByRole("heading", { name: PORTFOLIO_TITLE })).toBeVisible();
+    const matrixTab = page.getByRole("tab", { name: /Vue matrice|Matrix view/ });
+    const listTab = page.getByRole("tab", { name: /Vue liste|List view/ });
+    await expect(page.getByRole("tablist")).toBeVisible();
+    await expect(matrixTab).toHaveAttribute("aria-selected", "true");
+    await expect(listTab).toHaveAttribute("aria-selected", "false");
     await expect(page.locator("g[role='button']")).toHaveCount(6);
     await expect(page.getByRole("button", { name: /FNOL auto prioritaire/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Suggestion réserve initiale dommage/ })).toBeVisible();
+    const svgHeight = await page.locator("[data-portfolio-matrix-frame] svg").evaluate((node) => Number(node.getAttribute("height")));
+    expect(svgHeight).toBeGreaterThanOrEqual(300);
+    await expectNoHorizontalOverflow(page);
+    await expectNoQuadrantOverlayCollision(page);
+
+    await matrixTab.focus();
+    await matrixTab.press("ArrowRight");
+    await expect(listTab).toHaveAttribute("aria-selected", "true");
+    await expect(matrixTab).toHaveAttribute("aria-selected", "false");
+    await expect(page.getByRole("button", { name: "Suggestion réserve initiale dommage", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Suggestion réserve initiale dommage", exact: true }).click();
+    await expect(page.locator("[data-portfolio-summary]")).toContainText("Suggestion réserve initiale dommage");
+    await expectNoHorizontalOverflow(page);
+
+    await listTab.focus();
+    await listTab.press("ArrowLeft");
+    await expect(matrixTab).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("[data-portfolio-summary]")).toContainText("Suggestion réserve initiale dommage");
+    await expect(page.locator("g[role='button'][aria-pressed='true']")).toHaveCount(1);
+    await expectNoQuadrantOverlayCollision(page);
   });
 
   await submitReviewAndGenerateBrief(request, main.bootstrap, consultant.headers, {
@@ -222,6 +456,6 @@ test("captures eight seeded studio screens when opted in", async ({ page, reques
   await capture(page, "08", "document-centre", async () => {
     await expect(page.getByRole("heading", { name: DOCUMENT_CENTRE_TITLE })).toBeVisible();
     await expect(page.getByRole("heading", { name: EXECUTIVE_BRIEF })).toBeVisible();
-    await expect(page.getByText(/Version courante/)).toBeVisible();
+    await expect(page.getByText(/Version courante/).first()).toBeVisible();
   });
 });

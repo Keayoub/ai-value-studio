@@ -100,8 +100,11 @@ const SUBMIT_OVERRIDE = /Créer la nouvelle version|Create new version/;
 const SCORECARD_RECALCULATED_TOAST =
   /Scorecard recalculé|Scorecard recalculated/;
 const DOCUMENT_CENTRE_TITLE = /Centre documentaire|Document centre/;
+const DECISION_SURFACES_TITLE = /Surfaces de décision|Decision surfaces/;
+const PREREQUISITES_PENDING_TEXT =
+  /Pré-requis à satisfaire|Prerequisites pending/;
 const PORTFOLIO_TITLE = /Matrice portefeuille IA|AI portfolio matrix/;
-const PORTFOLIO_TABLE_VIEW = /Vue tableau|Table view/;
+const PORTFOLIO_TABLE_VIEW = /Vue liste|List view/;
 const PORTFOLIO_MATRIX_VIEW = /Vue matrice|Matrix view/;
 const PORTFOLIO_PROGRAM_FILTER = /Programme|Program/;
 const REVENUE_CAPACITY_LABEL =
@@ -110,6 +113,8 @@ const OVERRIDE_REASON_LABEL = /Raison de la surcharge|Override reason/;
 const REQUEST_INFORMATION_LIMITATION_TEXT =
   /Cette action reste indisponible tant qu’aucune API autorisée ne peut enregistrer une demande d’informations\.|This action stays unavailable until an authorized API can persist an information request\./;
 const AI_ASSISTED_TEXT = /^(Assisté par IA|AI-assisted)$/;
+const LOCAL_CONSULTANT_NAME = "Consultant local";
+const LOCAL_SPONSOR_NAME = "Sponsor local";
 
 function formatApiFailureBody(bodyText: string) {
   if (!bodyText) {
@@ -417,8 +422,13 @@ test("completes the persisted eight-step wizard, reloads cleanly, and submits", 
 }) => {
   const consultant = await fetchDevIdentityHeaders(request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
+  });
+  await fetchDevIdentityHeaders(request, {
+    subjectId: "sponsor",
+    displayName: LOCAL_SPONSOR_NAME,
+    role: "Sponsor",
   });
   const bootstrap = await bootstrapUseCase(request, {
     programName: `Programme wizard ${Date.now()}`,
@@ -427,13 +437,24 @@ test("completes the persisted eight-step wizard, reloads cleanly, and submits", 
   await proxyApiRequests(page, request);
   await selectDevIdentity(page, request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
 
   await openUseCase(page, bootstrap);
   await page.getByRole("button", { name: CREATE_DRAFT_LABEL }).click();
   await expect(page.getByText(KICKSTART_TITLE)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: DECISION_SURFACES_TITLE }),
+  ).toBeVisible();
+  await expect(page.getByText(PREREQUISITES_PENDING_TEXT)).toHaveCount(3);
+  await expect(
+    page.getByRole("heading", { name: REVIEW_PANEL_TITLE }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: SCORECARD_TITLE })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: DOCUMENT_CENTRE_TITLE }),
+  ).toHaveCount(0);
   await expect(page.getByText(KICKSTART_DISABLED_TEXT)).toBeVisible();
   await expect(
     page.getByRole("button", { name: GENERATE_KICKSTART_LABEL }),
@@ -478,13 +499,19 @@ test("completes the persisted eight-step wizard, reloads cleanly, and submits", 
   await page
     .getByLabel("Notes de revue")
     .fill("Pilote limité au tri initial avec revue humaine obligatoire.");
+  const submittedAssessment = page.waitForResponse((response) =>
+    /\/assessments\/[^/]+\/submit$/.test(new URL(response.url()).pathname) &&
+    response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: SUBMIT_LABEL }).click();
+  expect((await submittedAssessment).ok()).toBe(true);
 
   await expect(
     page.getByRole("heading", { name: REVIEW_PANEL_TITLE }),
   ).toBeVisible();
-  await expect(page.getByText(NO_REVIEW_TITLE)).toBeVisible();
-  await expect(page.getByText(READ_ONLY_TEXT)).toBeVisible();
+  await expect(page.getByRole("button", { name: REVIEW_SUBMIT_BUTTON })).toBeVisible();
+  await expect(page.getByText(NO_REVIEW_TITLE)).toHaveCount(0);
+  await expect(page.getByText(READ_ONLY_TEXT).first()).toBeVisible();
   await expect(page.getByText(SCORECARD_TITLE)).toBeVisible();
   await page.getByLabel(REVENUE_CAPACITY_LABEL).fill("18000");
   await page.getByRole("button", { name: RECALCULATE_SCORECARD }).click();
@@ -585,7 +612,7 @@ test("reviews and applies an AI proposal with explicit overwrite confirmation", 
   });
   const consultant = await fetchDevIdentityHeaders(request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
   const bootstrap = await bootstrapUseCase(request, {
@@ -618,7 +645,7 @@ test("reviews and applies an AI proposal with explicit overwrite confirmation", 
 
   await selectDevIdentity(page, request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
   await openUseCase(page, bootstrap);
@@ -768,17 +795,17 @@ test("routes sponsor approval through the review panel and inbox", async ({
   await proxyApiRequests(page, request);
   const consultant = await fetchDevIdentityHeaders(request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
   const sponsor = await fetchDevIdentityHeaders(request, {
     subjectId: "sponsor",
-    displayName: "Local Sponsor",
+    displayName: LOCAL_SPONSOR_NAME,
     role: "Sponsor",
   });
   await selectDevIdentity(page, request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
 
@@ -853,7 +880,7 @@ test("routes sponsor approval through the review panel and inbox", async ({
 
   await selectDevIdentity(page, request, {
     subjectId: "sponsor",
-    displayName: "Local Sponsor",
+    displayName: LOCAL_SPONSOR_NAME,
     role: "Sponsor",
   });
   await page.goto(`/studio/workspace?workspaceId=${bootstrap.workspaceId}`);
@@ -1004,7 +1031,7 @@ test("renders a populated portfolio matrix, filters it, and passes axe smoke", a
   await proxyApiRequests(page, request);
   const consultant = await fetchDevIdentityHeaders(request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
   const portfolioTimestamp = Date.now();
@@ -1023,7 +1050,7 @@ test("renders a populated portfolio matrix, filters it, and passes axe smoke", a
 
   await selectDevIdentity(page, request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
 
@@ -1045,13 +1072,20 @@ test("renders a populated portfolio matrix, filters it, and passes axe smoke", a
   await expect(page.getByRole("button", { name: new RegExp(secondUseCaseTitle) })).toBeVisible();
   await expectNoTaggedAxeViolations(page);
 
-  await page.getByRole("button", { name: PORTFOLIO_TABLE_VIEW }).click();
-  await expect(page.getByRole("table")).toBeVisible();
+  const listViewTab = page.getByRole("tab", { name: PORTFOLIO_TABLE_VIEW });
+  await listViewTab.click();
+  await expect(listViewTab).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("button", { name: firstUseCaseTitle, exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: secondUseCaseTitle, exact: true }),
+  ).toBeVisible();
   await page.getByLabel(PORTFOLIO_PROGRAM_FILTER).selectOption(secondBootstrap.programId);
   await expect(page.getByRole("button", { name: secondUseCaseTitle, exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: firstUseCaseTitle, exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: PORTFOLIO_MATRIX_VIEW }).click();
+  await page.getByRole("tab", { name: PORTFOLIO_MATRIX_VIEW }).click();
   await expect(page.getByRole("link", { name: /Ouvrir le cas d’usage|Open use case/ }).last()).toBeVisible();
   await expectNoTaggedAxeViolations(page);
 });
@@ -1062,7 +1096,7 @@ test("supports the changes-request loop before creating a new draft version", as
 }) => {
   const consultant = await fetchDevIdentityHeaders(request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
   const bootstrap = await bootstrapUseCase(request, {
@@ -1072,7 +1106,7 @@ test("supports the changes-request loop before creating a new draft version", as
   await proxyApiRequests(page, request);
   await selectDevIdentity(page, request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
 
@@ -1097,7 +1131,7 @@ test("supports the changes-request loop before creating a new draft version", as
 
   await selectDevIdentity(page, request, {
     subjectId: "sponsor",
-    displayName: "Local Sponsor",
+    displayName: LOCAL_SPONSOR_NAME,
     role: "Sponsor",
   });
   await openUseCase(page, bootstrap);
@@ -1112,7 +1146,7 @@ test("supports the changes-request loop before creating a new draft version", as
 
   await selectDevIdentity(page, request, {
     subjectId: "consultant",
-    displayName: "Local Consultant",
+    displayName: LOCAL_CONSULTANT_NAME,
     role: "Consultant",
   });
   await page.goto(`/studio/workspace?workspaceId=${bootstrap.workspaceId}`);
@@ -1166,7 +1200,7 @@ test("supports the changes-request loop before creating a new draft version", as
 
   await selectDevIdentity(page, request, {
     subjectId: "sponsor",
-    displayName: "Local Sponsor",
+    displayName: LOCAL_SPONSOR_NAME,
     role: "Sponsor",
   });
   await openUseCase(page, bootstrap);

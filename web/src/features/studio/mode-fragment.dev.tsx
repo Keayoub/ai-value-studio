@@ -11,6 +11,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { formatWorkspaceRoleLabel, type StudioLocale } from "@/features/studio/copy";
 import {
   defaultDevIdentityFor,
+  localizeSeededDevFixtureName,
   studioDevCopyFor,
   type DevIdentity,
 } from "@/features/studio/copy.dev";
@@ -23,19 +24,22 @@ export function sessionModeLabelFor(language: StudioLocale) {
 export function Banner({ language }: { language: StudioLocale }) {
   const copy = studioDevCopyFor(language);
   const auth = useAuth();
+  const displayName = localizeSeededDevFixtureName(language, auth.displayName);
   const roleLabel =
     auth.roleLabel && ["Consultant", "Sponsor", "Contributor", "WorkspaceAdmin"].includes(auth.roleLabel)
       ? formatWorkspaceRoleLabel(language, auth.roleLabel as DevIdentity["role"])
       : auth.roleLabel;
   return (
-    <div className="bg-[var(--studio-banner)] px-4 py-3 text-center text-sm font-semibold text-white">
-      {copy.authBanner}
-      {auth.displayName || roleLabel ? (
-        <span>
-          {" "}
-          · {auth.displayName ?? "—"} · {roleLabel ?? "—"}
-        </span>
-      ) : null}
+    <div className="bg-[var(--studio-banner)] px-4 text-white shadow-[var(--shadow-sm)]">
+      <div className="mx-auto flex min-h-8 max-w-7xl items-center justify-center text-center text-xs font-semibold tracking-[0.04em]">
+        <span>{copy.authBanner}</span>
+        {displayName || roleLabel ? (
+          <span className="truncate">
+            {" "}
+            · {displayName ?? "—"} · {roleLabel ?? "—"}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -570,7 +570,7 @@ test("launches the packaged Linux desktop shell in dev auth mode and opens a wor
 
     await test.step("sign in with the seeded dev identity", async () => {
       await expect(page).toHaveTitle(/AI Value Studio/);
-      await expect(page.getByText("LOCAL DEVELOPMENT — AUTH DISABLED")).toBeVisible();
+      await expect(page.getByText("DÉVELOPPEMENT LOCAL — AUTH DÉSACTIVÉE")).toBeVisible();
       await page.evaluate(() => {
         window.dispatchEvent(new Event("online"));
       });
@@ -582,12 +582,16 @@ test("launches the packaged Linux desktop shell in dev auth mode and opens a wor
     }, { timeout: packagedDesktopUiStepTimeoutMs });
 
     await test.step("open the seeded workspace", async () => {
-      const workspaceRow = page.getByRole("row").filter({ hasText: "Local Development Workspace" });
+      const workspaceRow = page
+        .getByRole("row")
+        .filter({ hasText: "Espace de développement local" });
       await expect(workspaceRow).toBeVisible();
       await workspaceRow.getByRole("link", { name: authLabels.openWorkspace }).click();
 
       await expect(page).toHaveURL(/app:\/\/studio\/studio\/workspace\?workspaceId=/);
-      await expect(page.getByRole("heading", { name: "Local Development Workspace" })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Local Development Workspace" }),
+      ).toBeVisible();
       await waitForSuccessfulReviewInboxResponse();
     }, { timeout: packagedDesktopUiStepTimeoutMs });
 

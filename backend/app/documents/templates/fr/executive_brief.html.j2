@@ -1,3 +1,27 @@
+{% macro render_signal_block(tone_class, eyebrow, heading, items) -%}
+  <article class="signal-block {{ tone_class }}">
+    <div class="signal-block__eyebrow">{{ eyebrow }}</div>
+    <h3>{{ heading }}</h3>
+    <ul class="signal-list">
+      {% for item in items %}
+        <li class="signal-list__item">
+          <div class="signal-list__title">{{ item.title }}</div>
+          <p class="signal-list__summary">
+            {% if item.ai_assisted %}<span class="ai-inline">{{ item.marker }}</span> — {% endif %}
+            {{ item.body }}
+          </p>
+          {% if item.source_metadata %}
+            <p class="source-metadata">
+              {% for meta in item.source_metadata %}
+                <span class="source-metadata__item">{{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}</span>
+              {% endfor %}
+            </p>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </article>
+{%- endmacro %}
 <!doctype html>
 <html lang="fr">
   <body>
@@ -62,8 +86,14 @@
             <p>Statut documentaire&nbsp;: {{ document_status_label }}</p>
             <p>Revue source&nbsp;: {{ review_status_label }}</p>
           </div>
-          <div class="stamp-card{% if approval_stamp.tone == 'draft' %} stamp-card--draft{% endif %}">
-            <div class="stamp-card__label">{{ approval_stamp.label }}</div>
+          <div class="status-block{% if approval_stamp.tone == 'draft' %} status-block--draft{% endif %}">
+            <div class="status-block__eyebrow">Statut d’approbation</div>
+            <div class="status-block__value">{{ approval_stamp.label }}</div>
+            <ul class="status-block__meta">
+              <li>Statut documentaire&nbsp;: {{ document_status_label }}</li>
+              <li>Statut de revue&nbsp;: {{ review_status_label }}</li>
+              <li>Version publiée&nbsp;: v{{ version_no }}</li>
+            </ul>
             <p>{{ approval_stamp.detail }}</p>
           </div>
         </div>
@@ -141,24 +171,14 @@
         Les blocs suivants reprennent uniquement des informations présentes dans le snapshot source
         ou calculées de manière déterministe à partir de celui-ci.
       </p>
+      {{ render_signal_block(
+        "signal-block--facts",
+        "Faits",
+        "Faits établis",
+        facts,
+      ) }}
 
-      {% for item in facts %}
-        <article class="fact-card">
-          <div class="fact-card__meta">{{ item.title }}</div>
-          <p>
-            {% if item.ai_assisted %}<span class="ai-inline">{{ item.marker }}</span> — {% endif %}
-            {{ item.body }}
-          </p>
-          {% if item.source_metadata %}
-            <p class="source-metadata">
-              {% for meta in item.source_metadata %}
-                <span class="source-metadata__item">{{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}</span>
-              {% endfor %}
-            </p>
-          {% endif %}
-        </article>
-      {% endfor %}
-
+      <h3>Blocs de preuve</h3>
       <div class="section-grid">
         <div class="section-grid__row">
           <div class="section-grid__cell">
@@ -205,40 +225,18 @@
         Les hypothèses n’ont pas valeur d’engagement automatique. Elles matérialisent les zones d’incertitude
         qui devront être confirmées pendant le pilote ou la due diligence documentaire.
       </p>
-
-      {% for item in hypotheses %}
-        <article class="section-card">
-          <div class="section-card__meta">{{ item.title }}</div>
-          <p>
-            {% if item.ai_assisted %}<span class="ai-inline">{{ item.marker }}</span> — {% endif %}
-            {{ item.body }}
-          </p>
-          {% if item.source_metadata %}
-            <p class="source-metadata">
-              {% for meta in item.source_metadata %}
-                <span class="source-metadata__item">{{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}</span>
-              {% endfor %}
-            </p>
-          {% endif %}
-        </article>
-      {% endfor %}
-
-      {% for item in recommendations %}
-        <article class="section-card">
-          <div class="section-card__meta">{{ item.title }}</div>
-          <p>
-            {% if item.ai_assisted %}<span class="ai-inline">{{ item.marker }}</span> — {% endif %}
-            {{ item.body }}
-          </p>
-          {% if item.source_metadata %}
-            <p class="source-metadata">
-              {% for meta in item.source_metadata %}
-                <span class="source-metadata__item">{{ meta.label }} ({{ meta.key }}) · {{ meta.source_label }}</span>
-              {% endfor %}
-            </p>
-          {% endif %}
-        </article>
-      {% endfor %}
+      {{ render_signal_block(
+        "signal-block--hypotheses",
+        "Hypothèses à valider",
+        "Hypothèses à valider",
+        hypotheses,
+      ) }}
+      {{ render_signal_block(
+        "signal-block--recommendations",
+        "Recommandations",
+        "Recommandations",
+        recommendations,
+      ) }}
     </section>
 
     <section class="page">

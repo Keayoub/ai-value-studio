@@ -62,7 +62,7 @@ export function ReviewPanel({
   envelope,
   locale,
   labels,
-  onEditStep,
+  onEditQuestion,
   fieldRefs,
   onQuestionChange,
   fieldErrors,
@@ -70,7 +70,7 @@ export function ReviewPanel({
   envelope: AssessmentEnvelope;
   locale: Locale;
   labels: WizardCopy;
-  onEditStep: (step: number) => void;
+  onEditQuestion: (step: number, questionKey: string) => void;
   fieldRefs: MutableRefObject<Record<string, HTMLElement | null>>;
   onQuestionChange: (
     question: WizardQuestion,
@@ -79,48 +79,96 @@ export function ReviewPanel({
   fieldErrors: Record<string, string>;
 }) {
   const reviewStep = envelope.template.steps.find((step) => step.index === 8);
+  const factRows = envelope.template.steps
+    .filter((step) => step.index >= 1 && step.index < 8)
+    .flatMap((step) =>
+      step.questions
+        .filter((question) => question.visible)
+        .map((question) => ({ step, question })),
+    );
   return (
     <div className="space-y-6">
       <Card className="shadow-[var(--shadow-sm)]">
         <CardHeader title={labels.review} description={labels.reviewDescription} />
-        <div className="space-y-4">
-          {envelope.template.steps
-            .filter((step) => step.index >= 1 && step.index < 8)
-            .map((step) => (
-              <section
-                key={step.index}
-                className="rounded-2xl border border-[var(--studio-border)] p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold text-[var(--studio-foreground)]">
-                      {step.title}
-                    </h3>
-                    <p className="text-sm text-[var(--studio-muted)]">{step.purpose}</p>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr),minmax(0,0.7fr)]">
+          <section className="rounded-2xl border border-[var(--studio-border)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-[var(--studio-foreground)]">
+                  {labels.facts}
+                </h3>
+                <p className="text-sm text-[var(--studio-muted)]">{labels.reviewDescription}</p>
+              </div>
+            </div>
+            <ul className="mt-4 space-y-3">
+              {factRows.map(({ step, question }) => (
+                <li
+                  key={question.key}
+                  className="rounded-xl border border-[var(--studio-border)] bg-[var(--studio-surface)] p-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-[var(--studio-foreground)]">
+                        {question.label}
+                      </p>
+                      <p className="text-sm text-[var(--studio-muted)]">
+                        {summarizeValue(question.value, locale, labels)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      className="px-3"
+                      onClick={() => onEditQuestion(step.index, question.key)}
+                    >
+                      {labels.editAnswer}
+                    </Button>
                   </div>
-                  <Button variant="ghost" onClick={() => onEditStep(step.index)}>
-                    {labels.editStep} {step.index}
-                  </Button>
-                </div>
-                <dl className="mt-4 grid gap-3 md:grid-cols-2">
-                  {step.questions
-                    .filter((question) => question.visible)
-                    .map((question) => (
-                      <div
-                        key={question.key}
-                        className="rounded-xl bg-[var(--studio-surface-subtle)] p-3"
-                      >
-                        <dt className="text-sm font-semibold text-[var(--studio-muted)]">
-                          {question.label}
-                        </dt>
-                        <dd className="mt-1 text-sm text-[var(--studio-foreground)]">
-                          {summarizeValue(question.value, locale, labels)}
-                        </dd>
-                      </div>
-                    ))}
-                </dl>
-              </section>
-            ))}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <div className="space-y-4">
+            <Card className="shadow-none">
+              <CardHeader title={labels.recommendationSummary} />
+              <dl className="space-y-3 text-sm">
+                <SummaryRow
+                  label={labels.sponsor}
+                  value={envelope.derived.sponsor_name ?? labels.noData}
+                />
+                <SummaryRow
+                  label={labels.riskProfile}
+                  value={envelope.derived.risk_profile ?? labels.noData}
+                />
+                {envelope.derived.step4_preview ? (
+                  <>
+                    <SummaryRow
+                      label={labels.derivedValue}
+                      value={formatCurrency(envelope.derived.step4_preview.net_value, locale)}
+                    />
+                    <SummaryRow
+                      label={labels.grossValue}
+                      value={formatCurrency(envelope.derived.step4_preview.gross_value, locale)}
+                    />
+                  </>
+                ) : (
+                  <SummaryRow label={labels.derivedValue} value={labels.noValuePreview} />
+                )}
+              </dl>
+            </Card>
+            <Card className="shadow-none">
+              <CardHeader title={labels.missingInformation} />
+              {envelope.derived.missing_information.length > 0 ? (
+                <ul className="list-disc space-y-2 ps-5 text-sm text-[var(--studio-muted)]">
+                  {envelope.derived.missing_information.map((entry, index) => (
+                    <li key={`${index}:${entry}`}>{entry}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-[var(--studio-muted)]">{labels.noData}</p>
+              )}
+            </Card>
+          </div>
         </div>
       </Card>
       {reviewStep ? (

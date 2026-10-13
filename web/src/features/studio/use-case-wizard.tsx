@@ -1039,11 +1039,6 @@ export function UseCaseWizard({
     onUseCaseChanged,
   ]);
 
-  const stepValidation = useMemo(
-    () => envelope?.validation.find((entry) => entry.step === currentStep) ?? null,
-    [currentStep, envelope],
-  );
-
   const canCreateAnotherVersion =
     envelope?.assessment.status === "Submitted" &&
     canCreateDraft &&
@@ -1066,6 +1061,22 @@ export function UseCaseWizard({
   const steps = useMemo(
     () => envelope?.template.steps.filter((step) => step.index > 0) ?? [],
     [envelope],
+  );
+  const mobileSteps = useMemo(() => {
+    const activeStepEntry = steps.find((step) => step.index === currentStep);
+    if (!activeStepEntry) {
+      return steps;
+    }
+    return [activeStepEntry, ...steps.filter((step) => step.index !== currentStep)];
+  }, [currentStep, steps]);
+  const questionLabels = useMemo(
+    () =>
+      Object.fromEntries(
+        steps.flatMap((step) =>
+          step.questions.map((question) => [question.key, question.label] as const),
+        ),
+      ),
+    [steps],
   );
 
   if (loading) {
@@ -1292,25 +1303,27 @@ export function UseCaseWizard({
     return null;
   }
 
-  return (
-    <section className="space-y-6">
-      <KickstartPanel
-        envelope={envelope}
-        locale={locale}
-        labels={labels}
-        status={kickstartStatus}
-        suggestion={kickstartSuggestion}
-        editors={kickstartEditors}
-        fieldStates={kickstartFieldStates}
-        canGenerate={canGenerateKickstart}
-        eligibilityMessage={kickstartEligibilityMessage}
-        onGenerate={() => void handleKickstartGenerate()}
-        onEditorChange={handleKickstartEditorChange}
-        onAccept={handleKickstartAccept}
-        onIgnore={handleKickstartIgnore}
-      />
+  const kickstartPanel = (
+    <KickstartPanel
+      envelope={envelope}
+      locale={locale}
+      labels={labels}
+      status={kickstartStatus}
+      suggestion={kickstartSuggestion}
+      editors={kickstartEditors}
+      fieldStates={kickstartFieldStates}
+      canGenerate={canGenerateKickstart}
+      eligibilityMessage={kickstartEligibilityMessage}
+      onGenerate={() => void handleKickstartGenerate()}
+      onEditorChange={handleKickstartEditorChange}
+      onAccept={handleKickstartAccept}
+      onIgnore={handleKickstartIgnore}
+    />
+  );
 
-      <Card>
+  return (
+    <section className="flex flex-col gap-6">
+      <Card className="order-1 xl:order-2">
         <div className="flex flex-col gap-4 border-b border-[var(--studio-border)] pb-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -1332,9 +1345,6 @@ export function UseCaseWizard({
                     ? `${labels.autosaveFailed} ${saveState.message}`
                     : ""}
             </p>
-          </div>
-          <div className="rounded-2xl bg-[var(--studio-surface-subtle)] px-4 py-3 text-sm text-[var(--studio-muted)]">
-            {labels.progress} {currentStep} / {LAST_STEP}
           </div>
         </div>
 
@@ -1402,8 +1412,58 @@ export function UseCaseWizard({
           </div>
         ) : null}
 
+        <div className="mt-6 xl:hidden">
+          <div className="rounded-2xl border border-[var(--studio-border)] bg-[var(--studio-surface-subtle)] p-4">
+            <p className="text-sm font-semibold text-[var(--studio-brand)]">
+              {labels.currentStep}
+            </p>
+            <ol
+              className="mt-3 flex snap-x gap-3 overflow-x-auto pb-1"
+              aria-label="Étapes de l’évaluation"
+            >
+              {mobileSteps.map((step) => {
+                const validation = envelope.validation.find((entry) => entry.step === step.index);
+                const stateLabel = !step.available
+                  ? labels.unavailableChip
+                  : step.index === currentStep
+                    ? labels.stepCurrent
+                    : validation?.is_valid
+                      ? labels.stepComplete
+                      : labels.stepPending;
+                return (
+                  <li key={step.index} className="min-w-[220px] snap-start">
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-start text-sm",
+                        step.index === currentStep
+                          ? "border-[var(--studio-brand)] bg-[var(--studio-surface-subtle)]"
+                          : "border-[var(--studio-border)] bg-[var(--studio-surface)] hover:border-[var(--studio-border-strong)]",
+                      )}
+                      aria-current={step.index === currentStep ? "step" : undefined}
+                      onClick={() => setDraftStep(step.index, envelope.assessment.id)}
+                    >
+                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--studio-brand)] text-xs font-semibold text-white">
+                        {step.index}
+                      </span>
+                      <span className="space-y-1">
+                        <span className="block font-medium text-[var(--studio-foreground)]">
+                          {step.title}
+                        </span>
+                        <span className="block text-xs text-[var(--studio-muted)]">
+                          {stateLabel}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </div>
+
         <div className="mt-6 grid gap-6 xl:grid-cols-[240px,minmax(0,1fr),minmax(0,280px)]">
-          <aside className="space-y-3">
+          <aside className="hidden space-y-3 xl:block">
             <p className="text-sm font-semibold text-[var(--studio-brand)]">
               {labels.currentStep}
             </p>
@@ -1453,21 +1513,32 @@ export function UseCaseWizard({
               <div
                 ref={errorSummaryRef}
                 tabIndex={-1}
+                role="alert"
+                aria-labelledby="wizard-validation-summary-title"
                 className="rounded-2xl border border-[var(--studio-danger)] bg-[var(--studio-danger-soft)] p-4"
               >
-                <h3 className="font-semibold text-[var(--studio-danger)]">
-                  {labels.missingInformation}
+                <h3
+                  id="wizard-validation-summary-title"
+                  className="font-semibold text-[var(--studio-danger)]"
+                >
+                  {labels.validationSummaryTitle}
                 </h3>
+                <p className="mt-1 text-sm text-[var(--studio-danger)]">
+                  {labels.validationSummaryDescription}
+                </p>
                 <ul className="mt-2 space-y-2 text-sm text-[var(--studio-danger)]">
                   {Object.entries(fieldErrors).map(([key, message]) => (
                     <li key={key}>
-                      <button
-                        type="button"
+                      <a
+                        href={`#wizard-${key}`}
                         className="underline underline-offset-2"
-                        onClick={() => fieldRefs.current[key]?.focus()}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          fieldRefs.current[key]?.focus();
+                        }}
                       >
-                        {message}
-                      </button>
+                        {(questionLabels[key] ?? key)} — {message}
+                      </a>
                     </li>
                   ))}
                 </ul>
@@ -1479,7 +1550,12 @@ export function UseCaseWizard({
                 envelope={envelope}
                 locale={locale}
                 labels={labels}
-                onEditStep={(step) => setDraftStep(step, envelope.assessment.id)}
+                onEditQuestion={(step, questionKey) => {
+                  setDraftStep(step, envelope.assessment.id);
+                  window.setTimeout(() => {
+                    fieldRefs.current[questionKey]?.focus();
+                  }, 0);
+                }}
                 fieldRefs={fieldRefs}
                 onQuestionChange={handleQuestionChange}
                 fieldErrors={fieldErrors}
@@ -1494,69 +1570,76 @@ export function UseCaseWizard({
               />
             )}
 
-            <div className="flex flex-col gap-3 border-t border-[var(--studio-border)] pt-4 sm:flex-row sm:justify-between">
-              {envelope.assessment.can_edit ? (
-                <Button
-                  variant="secondary"
-                  disabled={currentStep <= FIRST_EDITABLE_STEP}
-                  onClick={() => setDraftStep(currentStep - 1, envelope.assessment.id)}
-                >
-                  {labels.previous}
-                </Button>
-              ) : (
-                <span />
-              )}
-              <div className="flex flex-col gap-3 sm:flex-row">
-                {currentStep === LAST_STEP && envelope.assessment.can_edit ? (
-                  <>
-                    <Button variant="secondary" onClick={() => void processPendingDrafts()}>
-                      {labels.saveDraft}
+            <div className="sticky bottom-0 z-10 border-t border-[var(--studio-border)] bg-[var(--studio-surface)] py-4 shadow-[var(--shadow-sm)]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-medium text-[var(--studio-muted)]">
+                  {labels.progress} {currentStep} / {LAST_STEP}
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                  {envelope.assessment.can_edit && currentStep > FIRST_EDITABLE_STEP ? (
+                    <Button
+                      className="min-h-[44px]"
+                      variant="secondary"
+                      onClick={() => setDraftStep(currentStep - 1, envelope.assessment.id)}
+                    >
+                      {labels.previous}
                     </Button>
-                    <div className="space-y-2">
-                      <Button variant="secondary" disabled aria-disabled="true">
-                        {labels.requestInformation}
+                  ) : null}
+                  {currentStep === LAST_STEP && envelope.assessment.can_edit ? (
+                    <>
+                      <Button
+                        className="min-h-[44px]"
+                        variant="secondary"
+                        onClick={() => void processPendingDrafts()}
+                      >
+                        {labels.saveDraft}
                       </Button>
-                      <p className="max-w-sm text-xs text-[var(--studio-muted)]">
-                        {labels.requestInformationUnavailable}
-                      </p>
-                    </div>
-                  </>
-                ) : null}
-                {saveState.kind === "error" && envelope.assessment.can_edit ? (
-                  <Button variant="secondary" onClick={() => void processPendingDrafts()}>
-                    {labels.retry}
-                  </Button>
-                ) : null}
-                {canCreateAnotherVersion ? (
-                  <Button
-                    onClick={() =>
-                      void handleCreateDraft(useCase.status === "Approved")
-                    }
-                  >
-                    {labels.newDraft}
-                  </Button>
-                ) : envelope.assessment.can_edit ? (
-                  <Button onClick={() => void handleContinue()}>
-                    {currentStep === LAST_STEP ? labels.submit : labels.continue}
-                  </Button>
-                ) : null}
+                      <div className="space-y-2">
+                        <Button className="min-h-[44px]" variant="secondary" disabled aria-disabled="true">
+                          {labels.requestInformation}
+                        </Button>
+                        <p className="max-w-sm text-xs text-[var(--studio-muted)]">
+                          {labels.requestInformationUnavailable}
+                        </p>
+                      </div>
+                    </>
+                  ) : null}
+                  {saveState.kind === "error" && envelope.assessment.can_edit ? (
+                    <Button
+                      className="min-h-[44px]"
+                      variant="secondary"
+                      onClick={() => void processPendingDrafts()}
+                    >
+                      {labels.retry}
+                    </Button>
+                  ) : null}
+                  {canCreateAnotherVersion ? (
+                    <Button
+                      className="min-h-[44px]"
+                      onClick={() =>
+                        void handleCreateDraft(useCase.status === "Approved")
+                      }
+                    >
+                      {labels.newDraft}
+                    </Button>
+                  ) : envelope.assessment.can_edit ? (
+                    <Button className="min-h-[44px]" onClick={() => void handleContinue()}>
+                      {currentStep === LAST_STEP ? labels.submit : labels.continue}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
 
           <aside className="space-y-4">
-            <DerivedPanel derived={envelope.derived} locale={locale} labels={labels} />
-            {stepValidation && stepValidation.errors.length > 0 ? (
-              <Card className="shadow-[var(--shadow-sm)]">
-                <CardHeader
-                  title={labels.missingInformation}
-                  description={stepValidation.errors.map((error) => error.message).join(" · ")}
-                />
-              </Card>
-            ) : null}
+            {currentStep === LAST_STEP ? null : (
+              <DerivedPanel derived={envelope.derived} locale={locale} labels={labels} />
+            )}
           </aside>
         </div>
       </Card>
+      <div className="order-2 xl:order-1">{kickstartPanel}</div>
       <Dialog
         open={overwriteDialog !== null}
         title={labels.kickstartOverwriteTitle}
