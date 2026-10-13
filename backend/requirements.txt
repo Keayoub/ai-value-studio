@@ -6,6 +6,6 @@ pydantic==2.10.3
 pydantic-settings==2.6.1
 PyJWT[crypto]==2.15.1
 psycopg[binary]==3.3.6
-sqlmodel==0.0.22
+sqlmodel==0.0.48
 starlette==1.7.0
 uvicorn[standard]==0.54.0
