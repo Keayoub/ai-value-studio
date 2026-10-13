@@ -102,6 +102,17 @@ jobs:
       - name: Package Electron app
         working-directory: electron-app
         run: npm run pack
+      - name: Configure packaged Chromium sandbox
+        working-directory: electron-app
+        run: |
+          set -eu
+          sandbox_path="release/linux-unpacked/chrome-sandbox"
+          sudo chown root:root "$sandbox_path"
+          sudo chmod 4755 "$sandbox_path"
+          stat --format '%n %U:%G %a %A' "$sandbox_path"
+          test "$(stat --format '%U:%G' "$sandbox_path")" = "root:root"
+          test "$(stat --format '%a' "$sandbox_path")" = "4755"
+          test -u "$sandbox_path"
       - name: Run Electron smoke test
         working-directory: electron-app
         run: npm run test:smoke
