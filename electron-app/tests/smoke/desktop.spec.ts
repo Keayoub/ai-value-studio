@@ -35,6 +35,11 @@ const desktopRendererBuildConfigPath = path.resolve(
   "desktop-public-build.json",
 );
 const smokeProfileRoot = path.resolve(process.cwd(), "test-results");
+const packagedSmokeTestTimeoutMs = 90_000;
+const packagedDesktopLaunchStepTimeoutMs = 45_000;
+const packagedDesktopWindowStepTimeoutMs = 45_000;
+const packagedDesktopUiStepTimeoutMs = 20_000;
+const packagedDesktopCleanupTimeoutMs = 15_000;
 type DisposeApiProxy = (closeApp: () => Promise<void>) => Promise<void>;
 type ApiProxyController = {
   dispose: DisposeApiProxy;
@@ -283,7 +288,7 @@ async function proxyApiRequests(context: BrowserContext): Promise<ApiProxyContro
 
 async function waitForFirstWindow(electronApp: ElectronApplication) {
   try {
-    return await electronApp.firstWindow();
+    return await electronApp.firstWindow({ timeout: packagedDesktopWindowStepTimeoutMs });
   } catch (error) {
     const browserWindows = await electronApp.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().map((browserWindow) => ({
@@ -306,7 +311,9 @@ async function closeElectronApp(electronApp: ElectronApplication | null) {
   }
 
   const appClosed =
-    electronApp.process().exitCode === null ? electronApp.waitForEvent("close") : Promise.resolve();
+    electronApp.process().exitCode === null
+      ? electronApp.waitForEvent("close", { timeout: packagedDesktopCleanupTimeoutMs })
+      : Promise.resolve();
 
   await electronApp.close();
   await appClosed;
@@ -314,6 +321,7 @@ async function closeElectronApp(electronApp: ElectronApplication | null) {
 
 test("launches the packaged Linux desktop shell in dev auth mode and opens a workspace", async () => {
   test.skip(process.platform !== "linux", "Smoke covers the packaged Linux executable only.");
+  test.setTimeout(packagedSmokeTestTimeoutMs);
 
   const packagedAppPath = resolvePackagedAppPath();
   expect(fs.existsSync(packagedAppPath)).toBe(true);
@@ -342,6 +350,7 @@ test("launches the packaged Linux desktop shell in dev auth mode and opens a wor
           XDG_CONFIG_HOME: path.join(smokeHomeDirectory, ".config"),
         },
       }),
+      { timeout: packagedDesktopLaunchStepTimeoutMs },
     );
     const launchedElectronApp = electronApp;
     const apiProxyController = await proxyApiRequests(launchedElectronApp.context());
@@ -351,9 +360,11 @@ test("launches the packaged Linux desktop shell in dev auth mode and opens a wor
 
     const page = await test.step("open the first desktop window", async () => {
       const firstWindow = await waitForFirstWindow(launchedElectronApp);
-      await firstWindow.waitForLoadState("domcontentloaded");
+      await firstWindow.waitForLoadState("domcontentloaded", {
+        timeout: packagedDesktopWindowStepTimeoutMs,
+      });
       return firstWindow;
-    });
+    }, { timeout: packagedDesktopWindowStepTimeoutMs });
 
     await test.step("sign in with the seeded dev identity", async () => {
       await expect(page).toHaveTitle(/AI Value Studio/);
@@ -366,7 +377,7 @@ test("launches the packaged Linux desktop shell in dev auth mode and opens a wor
       await page.getByLabel(authLabels.localIdentifier).fill("workspace-admin");
       await page.getByLabel(authLabels.displayName).fill("Local Workspace Admin");
       await page.getByRole("button", { name: authLabels.selectIdentity }).click();
-    });
+    }, { timeout: packagedDesktopUiStepTimeoutMs });
 
     await test.step("open the seeded workspace", async () => {
       const workspaceRow = page.getByRole("row").filter({ hasText: "Local Development Workspace" });
@@ -376,7 +387,7 @@ test("launches the packaged Linux desktop shell in dev auth mode and opens a wor
       await expect(page).toHaveURL(/app:\/\/studio\/studio\/workspace\?workspaceId=/);
       await expect(page.getByRole("heading", { name: "Local Development Workspace" })).toBeVisible();
       await waitForSuccessfulReviewInboxResponse();
-    });
+    }, { timeout: packagedDesktopUiStepTimeoutMs });
 
     await test.step("verify the secure desktop bridge runtime", async () => {
       const bridgeInfo = await page.evaluate(() => {
@@ -402,7 +413,7 @@ test("launches the packaged Linux desktop shell in dev auth mode and opens a wor
       expect(bridgeInfo.authMode).toBe("dev");
       expect(bridgeInfo.apiBaseUrl).toBe(backendUrl);
       expect(bridgeInfo.hasNode).toBe(false);
-    });
+    }, { timeout: packagedDesktopUiStepTimeoutMs });
   } finally {
     await disposeApiProxy(async () => {
       await closeElectronApp(electronApp);
