@@ -177,7 +177,7 @@ export function createDesktopAuthService(environment: DesktopEnvironment): Deskt
         return token.accessToken;
       } catch (error) {
         if (error instanceof InteractionRequiredAuthError) {
-          throw new Error("Interactive sign-in is required.");
+          throw new Error("Interactive sign-in is required.", { cause: error });
         }
 
         throw error;
