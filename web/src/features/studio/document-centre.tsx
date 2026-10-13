@@ -23,7 +23,7 @@ import type {
   WorkspaceRole,
 } from "@/features/api/types";
 import { useAuth } from "@/features/auth/auth-context";
-import { getPublicRuntimeConfig } from "@/features/auth/runtime";
+import { getDesktopBridge, getPublicRuntimeConfig } from "@/features/auth/runtime";
 import { cn } from "@/lib/cn";
 
 const runtimeConfig = getPublicRuntimeConfig(process.env);
@@ -538,14 +538,26 @@ export function DocumentCentre({
         useCase.id,
         versionId,
       );
-      const url = URL.createObjectURL(result.blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = result.filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const desktopBridge = getDesktopBridge();
+      if (desktopBridge) {
+        const saveResult = await desktopBridge.documents.save({
+          suggestedName: result.filename,
+          contentType: result.contentType,
+          bytes: new Uint8Array(await result.blob.arrayBuffer()),
+        });
+        if (saveResult.canceled) {
+          return;
+        }
+      } else {
+        const url = URL.createObjectURL(result.blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = result.filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
       toast.push({
         tone: "success",
         title: copy.toasts.downloaded,

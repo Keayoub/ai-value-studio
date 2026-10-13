@@ -43,24 +43,27 @@ export function EntraAuthProvider({
   const [me, setMe] = useState<MeResponse | null>(null);
   const [status, setStatus] = useState<AuthState["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!client) {
       return;
     }
+
     let active = true;
     const callbackId = client.addEventCallback((event) => {
       if (!active) {
         return;
       }
+
       if (
         event.eventType === EventType.LOGIN_SUCCESS &&
         event.payload &&
-        "account" in event.payload
+        "account" in event.payload &&
+        event.payload.account
       ) {
-        if (event.payload.account) {
-          setAccount(event.payload.account);
-        }
+        setAccount(event.payload.account);
       }
+
       if (event.eventType === EventType.LOGOUT_SUCCESS) {
         setAccount(null);
         setMe(null);
@@ -108,7 +111,7 @@ export function EntraAuthProvider({
       account,
       scopes: [config.entra.scope],
     });
-    return { Authorization: `Bearer ${token.accessToken}` };
+    return { Authorization: "Bearer " + token.accessToken };
   }, [account, client, config.entra.scope]);
 
   const apiClient = useMemo(
@@ -122,6 +125,7 @@ export function EntraAuthProvider({
       setStatus("unauthenticated");
       return;
     }
+
     setStatus("loading");
     try {
       const payload = await apiClient.getMe();

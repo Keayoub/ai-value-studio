@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ import {
   resolveVisibleUseCase,
   workspaceDisplayLanguage,
 } from "@/features/auth/guards";
-import { getPublicRuntimeConfig } from "@/features/auth/runtime";
+import { getPublicRuntimeConfig, isDesktopRuntime } from "@/features/auth/runtime";
 import {
   formatProgramStatusLabel,
   formatUseCaseStatusLabel,
@@ -57,8 +57,17 @@ import { UseCaseWizard } from "@/features/studio/use-case-wizard";
 import { cn } from "@/lib/cn";
 
 type StudioRoute = "home" | "workspace" | "program" | "use-case" | "portfolio" | "members";
+type DesktopApiReachability = "reachable" | "unreachable";
+type DesktopConnectivityKind = "checking" | "online" | "offline" | "unreachable";
+type DesktopConnectivityState = {
+  kind: DesktopConnectivityKind;
+  healthOrigin: string | null;
+};
 
 const runtimeConfig = getPublicRuntimeConfig(process.env);
+const DESKTOP_HEALTH_CHECK_TIMEOUT_MS = 3_000;
+const DESKTOP_HEALTH_RETRY_DELAY_MS = 750;
+const DESKTOP_HEALTH_MAX_ATTEMPTS = 2;
 
 export function StudioApp({ route }: { route: StudioRoute }) {
   const auth = useAuth();
@@ -861,6 +870,8 @@ export function StudioApp({ route }: { route: StudioRoute }) {
           <NavLink href={hrefFor("members", { workspaceId })} label={t.navigation.members} />
         </nav>
 
+        <DesktopConnectivityBanner language={language} />
+
         {loading ? <StudioLoadingState /> : content}
       </div>
 
@@ -1167,5 +1178,245 @@ export function StudioRoutePage({ route }: { route: StudioRoute }) {
     <Suspense fallback={<StudioLoadingState />}>
       <StudioApp route={route} />
     </Suspense>
+  );
+}
+
+export function deriveDesktopHealthEndpoint(apiBaseUrl: string): string | null {
+  try {
+    return new URL("/health", new URL(apiBaseUrl).origin).toString();
+  } catch {
+    return null;
+  }
+}
+
+export function classifyDesktopApiReachability(status: number): DesktopApiReachability {
+  if ((status >= 200 && status < 300) || status === 401) {
+    return "reachable";
+  }
+  return "unreachable";
+}
+
+export function resolveDesktopConnectivityState({
+  isOnline,
+  reachability,
+  healthOrigin,
+}: {
+  isOnline: boolean;
+  reachability: DesktopApiReachability;
+  healthOrigin: string | null;
+}): DesktopConnectivityState {
+  if (!isOnline) {
+    return { kind: "offline", healthOrigin };
+  }
+  return {
+    kind: reachability === "reachable" ? "online" : "unreachable",
+    healthOrigin,
+  };
+}
+
+function waitForDesktopHealthRetry(signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, DESKTOP_HEALTH_RETRY_DELAY_MS);
+
+    const handleAbort = () => {
+      window.clearTimeout(timeoutId);
+      signal.removeEventListener("abort", handleAbort);
+      reject(new DOMException("Desktop health retry aborted.", "AbortError"));
+    };
+
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+async function probeDesktopApiReachability(
+  healthEndpoint: string,
+  signal: AbortSignal,
+): Promise<DesktopApiReachability> {
+  for (let attempt = 1; attempt <= DESKTOP_HEALTH_MAX_ATTEMPTS; attempt += 1) {
+    const attemptController = new AbortController();
+    const timeoutId = window.setTimeout(() => attemptController.abort(), DESKTOP_HEALTH_CHECK_TIMEOUT_MS);
+    const forwardAbort = () => attemptController.abort();
+
+    signal.addEventListener("abort", forwardAbort, { once: true });
+    try {
+      const response = await fetch(healthEndpoint, {
+        method: "GET",
+        cache: "no-store",
+        signal: attemptController.signal,
+      });
+      return classifyDesktopApiReachability(response.status);
+    } catch (error) {
+      if (signal.aborted) {
+        throw error;
+      }
+      if (attempt === DESKTOP_HEALTH_MAX_ATTEMPTS) {
+        return "unreachable";
+      }
+      await waitForDesktopHealthRetry(signal);
+    } finally {
+      window.clearTimeout(timeoutId);
+      signal.removeEventListener("abort", forwardAbort);
+    }
+  }
+
+  return "unreachable";
+}
+
+function DesktopConnectivityBanner({ language }: { language: "fr" | "en" }) {
+  const healthEndpoint = useMemo(
+    () => deriveDesktopHealthEndpoint(runtimeConfig.apiBaseUrl),
+    [],
+  );
+  const healthOrigin = useMemo(() => {
+    if (!healthEndpoint) {
+      return null;
+    }
+    return new URL(healthEndpoint).origin;
+  }, [healthEndpoint]);
+  const [connectivity, setConnectivity] = useState<DesktopConnectivityState>(() =>
+    resolveDesktopConnectivityState({
+      isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
+      reachability: "reachable",
+      healthOrigin,
+    }),
+  );
+  const checkControllerRef = useRef<AbortController | null>(null);
+
+  const refreshConnectivity = useCallback(
+    async () => {
+      if (!isDesktopRuntime()) {
+        return;
+      }
+
+      const online = typeof navigator === "undefined" ? true : navigator.onLine;
+      if (!online) {
+        checkControllerRef.current?.abort();
+        setConnectivity({ kind: "offline", healthOrigin });
+        return;
+      }
+      if (!healthEndpoint) {
+        setConnectivity({ kind: "unreachable", healthOrigin });
+        return;
+      }
+
+      checkControllerRef.current?.abort();
+      const controller = new AbortController();
+      checkControllerRef.current = controller;
+      setConnectivity({ kind: "checking", healthOrigin });
+
+      try {
+        const reachability = await probeDesktopApiReachability(healthEndpoint, controller.signal);
+        if (controller.signal.aborted) {
+          return;
+        }
+        const nextState = resolveDesktopConnectivityState({
+          isOnline: true,
+          reachability,
+          healthOrigin,
+        });
+        setConnectivity(nextState);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        throw error;
+      } finally {
+        if (checkControllerRef.current === controller) {
+          checkControllerRef.current = null;
+        }
+      }
+    },
+    [healthEndpoint, healthOrigin],
+  );
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) {
+      return;
+    }
+
+    const initialCheckId = window.setTimeout(() => {
+      void refreshConnectivity();
+    }, 0);
+
+    const handleOnline = () => {
+      void refreshConnectivity();
+    };
+    const handleOffline = () => {
+      checkControllerRef.current?.abort();
+      setConnectivity({ kind: "offline", healthOrigin });
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.clearTimeout(initialCheckId);
+      checkControllerRef.current?.abort();
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [healthOrigin, refreshConnectivity]);
+
+  if (
+    !isDesktopRuntime() ||
+    connectivity.kind === "online" ||
+    connectivity.kind === "checking"
+  ) {
+    return null;
+  }
+
+  const copy =
+    connectivity.kind === "offline"
+      ? language === "fr"
+        ? {
+            title: "Connexion Internet indisponible",
+            detail:
+              "L’application bureau reste ouverte localement. Rebranchez l’appareil au réseau, puis réessayez pour reprendre les appels API et l’authentification.",
+            retry: "Réessayer",
+          }
+        : {
+            title: "Internet connection unavailable",
+            detail:
+              "The desktop app remains open locally. Reconnect this device to the network, then retry to resume API calls and authentication.",
+            retry: "Retry",
+          }
+      : language === "fr"
+      ? {
+          title: "API inaccessible",
+          detail:
+            healthOrigin === null
+              ? "Internet semble disponible, mais la vérification de l’API a échoué. Vérifiez que le service AI Value Studio est démarré et que CORS autorise app://studio, puis réessayez."
+              : `Internet semble disponible, mais l’API AI Value Studio ne répond pas sur ${healthOrigin}. Vérifiez que le service est démarré et que CORS autorise app://studio, puis réessayez.`,
+          retry: "Réessayer la connexion",
+        }
+      : {
+          title: "API unreachable",
+          detail:
+            healthOrigin === null
+              ? "Internet appears available, but the API reachability check failed. Verify that the AI Value Studio service is running and that CORS allows app://studio, then retry."
+              : `Internet appears available, but the AI Value Studio API is not responding at ${healthOrigin}. Verify that the service is running and that CORS allows app://studio, then retry.`,
+          retry: "Retry connection",
+        };
+
+  return (
+    <div className="rounded-2xl border border-[var(--studio-warning)] bg-[var(--studio-surface)] px-4 py-3 text-sm shadow-[var(--shadow-sm)]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-semibold text-[var(--studio-foreground)]">{copy.title}</p>
+          <p className="text-[var(--studio-muted)]">{copy.detail}</p>
+        </div>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            void refreshConnectivity();
+          }}
+        >
+          {copy.retry}
+        </Button>
+      </div>
+    </div>
   );
 }
