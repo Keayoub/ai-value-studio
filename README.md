@@ -2,7 +2,7 @@
 
 ## From AI ideas to business value
 
-TIFINIA AI Value Studio is a reusable AI advisory and assessment framework for turning business problems into prioritized, measurable and governable AI use cases.
+AI Value Studio is a standalone AI advisory and assessment product for turning business problems into prioritized, measurable AI use cases and generating client deliverables. It is not a governance platform.
 
 It supports the full path:
 
@@ -16,6 +16,7 @@ Business discovery → Use case definition → Value assessment → Readiness �
 - Business Value Scorecard
 - AI Portfolio Matrix
 - Executive AI Opportunity Brief
+- Executive Brief and Pilot Charter (generated French Markdown/PDF); [AI Governance Plan](docs/architecture/ai-governance-plan-decision-packet.md) (planned generated advisory deliverable)
 - Product brief and commercial packaging
 - [Functional specifications](docs/FUNCTIONAL_SPECIFICATIONS_FR.md) for the Web wizard, assessment engine and document generation
 - [Coding agent brief](docs/CODING_AGENT_BRIEF_FR.md) for the MVP implementation scope and acceptance criteria
@@ -23,7 +24,9 @@ Business discovery → Use case definition → Value assessment → Readiness �
 
 ## Positioning
 
-AI Value Studio is the AMOA and decision layer that helps organizations select the right AI opportunities before investing in technology. Validated use cases can then connect to TIFINIA AI Platform, Agent Studio and vertical solutions.
+AI Value Studio is the standalone AMOA and decision layer that helps organizations select the right AI opportunities before investing in technology. Its document generation has no external platform dependency.
+
+Older framework and execution-model sections below describe historical repository assets, not governance-platform capabilities of the AVS product.
 
 ## Framework dimensions
 
