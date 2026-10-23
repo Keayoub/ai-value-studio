@@ -12,3 +12,5 @@
 ## Decision packet
 
 See `docs/architecture/decision-packet.md` for the verbatim architecture packet copy used by this slice.
+
+For the planned, standalone **AI Governance Plan generated deliverable** (not a governance platform), see the [authoritative future deliverable decision packet](architecture/ai-governance-plan-decision-packet.md). It does not change the current document implementation.
