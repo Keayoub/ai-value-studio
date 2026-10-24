@@ -80,22 +80,27 @@ def classify_use_case(
 
 
 def compute_value_estimates(value_inputs: ValueInputs) -> dict[str, float]:
+    annual_volume = Decimal(str(value_inputs.annual_volume))
     annual_time_value = (
-        value_inputs.annual_volume * value_inputs.time_saved_hours * value_inputs.hourly_cost
+        annual_volume
+        * Decimal(str(value_inputs.time_saved_hours))
+        * Decimal(str(value_inputs.hourly_cost))
     )
     error_avoidance = (
-        value_inputs.annual_volume
-        * _normalize_error_reduction_rate(value_inputs.error_reduction_rate)
-        * value_inputs.average_error_cost
+        annual_volume
+        * Decimal(str(_normalize_error_reduction_rate(value_inputs.error_reduction_rate)))
+        * Decimal(str(value_inputs.average_error_cost))
     )
-    gross = annual_time_value + error_avoidance + value_inputs.revenue_capacity_value
-    net = gross - value_inputs.estimated_annual_cost
+    gross = annual_time_value + error_avoidance + Decimal(
+        str(value_inputs.revenue_capacity_value)
+    )
+    net = gross - Decimal(str(value_inputs.estimated_annual_cost))
 
     return {
-        "annual_time_value": round(annual_time_value, 2),
-        "error_avoidance_value": round(error_avoidance, 2),
-        "estimated_gross_value": round(gross, 2),
-        "estimated_net_value": round(net, 2),
+        "annual_time_value": float(_quantize(annual_time_value, ROUND_TWO)),
+        "error_avoidance_value": float(_quantize(error_avoidance, ROUND_TWO)),
+        "estimated_gross_value": float(_quantize(gross, ROUND_TWO)),
+        "estimated_net_value": float(_quantize(net, ROUND_TWO)),
     }
 
 
@@ -403,7 +408,7 @@ def _compute_scenario(
     error_reduction_rate = Decimal(
         str(_normalize_error_reduction_rate(value_inputs.error_reduction_rate))
     )
-    error_reduction_rate *= multiplier
+    error_reduction_rate = min(error_reduction_rate * multiplier, Decimal("1"))
     average_error_cost = Decimal(str(value_inputs.average_error_cost))
     revenue_capacity = Decimal(str(value_inputs.revenue_capacity_value)) * multiplier
     annual_cost = Decimal(str(value_inputs.estimated_annual_cost))
@@ -469,7 +474,13 @@ def _compute_custom_sensitivity_scenario(
         ),
         hourly_cost=value_inputs.hourly_cost,
         error_reduction_rate=(
-            float(Decimal(str(value_inputs.error_reduction_rate)) * multiplier)
+            float(
+                min(
+                    Decimal(str(_normalize_error_reduction_rate(value_inputs.error_reduction_rate)))
+                    * multiplier,
+                    Decimal("1"),
+                )
+            )
             if lever == "error_reduction_rate"
             else value_inputs.error_reduction_rate
         ),
@@ -511,7 +522,7 @@ def _discounted_npv_and_payback(
         discounted = cashflow / ((Decimal("1") + monthly_discount_rate) ** month_index)
         cumulative += discounted
         npv += discounted
-        if payback is None and cumulative >= 0:
+        if payback is None and benefit > 0 and cumulative >= 0:
             payback = Decimal(month_index)
     return npv, payback
 
