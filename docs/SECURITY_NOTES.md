@@ -45,7 +45,19 @@ Any relaxation to support new integrations should be reviewed as a security chan
 
 ## Backend tenancy follow-up
 
-Row-level security still needs to be tracked and enforced for **all business tenant tables**, not only the currently protected subset. This remains a required follow-up item before broader production rollout.
+PostgreSQL business-table RLS is enforced with `ENABLE` and `FORCE` for every table from migrations `20261011_0001` through `20261012_0009`:
+
+- Workspace roots and membership: `workspaces`, `workspace_memberships`, `audit_events`.
+- Lifecycle: `programs`, `program_members`, `use_cases`.
+- Wizard: `questionnaire_template_versions`, `question_definitions`, `assessment_versions`, `answers`, `hypotheses`.
+- Value: `value_assessments`, `score_configuration_versions`, `scorecard_versions`, `dimension_scores`.
+- Review: `reviews`, `review_comments`, `approvals`.
+- Documents: `documents`, `document_versions`.
+- AI controls: `llm_rate_limit_buckets`, `llm_circuit_breakers`.
+
+`question_definitions` inherits its template's workspace policy; global baseline templates and their questions remain readable in a verified workspace context but cannot be modified by the application role. Scoped reads/writes require an active membership for the bound actor, in addition to the existing transaction-local workspace verification. Membership policies check the persisted enum name `ACTIVE`; discovery of the actor's own active memberships remains available before verification, and the first membership can be inserted when creating a workspace. Workspace-bearing child writes also validate same-workspace parent references (global templates excepted), preventing cross-tenant FK links. `identity_subjects` is a shared identity directory, not a tenant business table; `alembic_version` is migration metadata.
+
+The `20261012_0010` migration creates a `SECURITY DEFINER` membership check with `row_security = off`: the migration/function owner must have `BYPASSRLS` (for example a PostgreSQL superuser), while the application login must **not** own the tables, have `BYPASSRLS`, or be a superuser. The API binds actor/workspace settings inside the transaction after authentication; application database credentials must never be exposed to untrusted SQL clients, since PostgreSQL custom settings can be changed by the connected role. CI runs PostgreSQL isolation tests against a separate non-owner application login; local tests explicitly skip PostgreSQL coverage when `POSTGRES_TEST_URL` is unset.
 
 ## Current dev-only advisory status
 

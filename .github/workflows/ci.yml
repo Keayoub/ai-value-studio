@@ -9,6 +9,21 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_TEST_URL: postgresql+psycopg://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -25,6 +40,8 @@ jobs:
         run: .venv/bin/ruff check .
       - name: Run Python tests
         run: .venv/bin/pytest -q
+      - name: Require PostgreSQL RLS execution
+        run: .venv/bin/pytest -q backend/tests/test_postgres_business_rls.py backend/tests/test_postgres_rls_api.py backend/tests/test_alembic.py -k postgres
       - name: Audit backend dependencies
         run: .venv/bin/python -m pip_audit -r backend/requirements.txt
 

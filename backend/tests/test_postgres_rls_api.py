@@ -164,6 +164,11 @@ def test_postgres_rls_allows_real_api_flows_and_blocks_cross_tenant_access(
         f"/api/v1/workspaces/{workspace_a_id}/programs/{program_id}/use-cases/{use_case_id}",
         headers=dev_headers("actor"),
     )
+    actor_transition_use_case_response = postgres_dev_client.post(
+        f"/api/v1/workspaces/{workspace_a_id}/programs/{program_id}/use-cases/{use_case_id}/transition",
+        json={"target_status": "InProgress"},
+        headers=dev_headers("actor"),
+    )
     actor_create_assessment_response = postgres_dev_client.post(
         f"/api/v1/workspaces/{workspace_a_id}/programs/{program_id}/use-cases/{use_case_id}/assessments",
         json={},
@@ -171,11 +176,6 @@ def test_postgres_rls_allows_real_api_flows_and_blocks_cross_tenant_access(
     )
     actor_get_scorecards_response = postgres_dev_client.get(
         f"/api/v1/workspaces/{workspace_a_id}/programs/{program_id}/use-cases/{use_case_id}/scorecards",
-        headers=dev_headers("actor"),
-    )
-    actor_transition_use_case_response = postgres_dev_client.post(
-        f"/api/v1/workspaces/{workspace_a_id}/programs/{program_id}/use-cases/{use_case_id}/transition",
-        json={"target_status": "InProgress"},
         headers=dev_headers("actor"),
     )
     outsider_get_use_case_response = postgres_dev_client.get(
@@ -188,12 +188,13 @@ def test_postgres_rls_allows_real_api_flows_and_blocks_cross_tenant_access(
     )
 
     assert actor_get_use_case_response.status_code == 200
+    assert actor_get_use_case_response.json()["status"] == "Draft"
+    assert actor_transition_use_case_response.status_code == 200
+    assert actor_transition_use_case_response.json()["status"] == "InProgress"
     assert actor_create_assessment_response.status_code == 201
     assert actor_get_scorecards_response.status_code == 200
     assert actor_get_scorecards_response.json()["score_configuration"]["weights"][
         "business_value"
     ] == 0.25
-    assert actor_transition_use_case_response.status_code == 200
-    assert actor_transition_use_case_response.json()["status"] == "InProgress"
     assert outsider_get_use_case_response.status_code == 404
     assert outsider_get_scorecards_response.status_code == 404
