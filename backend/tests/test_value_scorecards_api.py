@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 import uuid
 
-import pytest
 from app.db.models.lifecycle import (
     DimensionScoreRecord,
     ProgramAssignmentRole,
@@ -392,19 +392,20 @@ def test_value_scorecard_rejects_invalid_payloads_and_override_reason(
     )
     assert invalid_rate.status_code == 422
 
-    with pytest.raises(ValueError, match="Out of range float values are not JSON compliant"):
-        dev_client.put(
+    for field, value in (("annual_volume", float("nan")), ("hourly_cost", float("inf"))):
+        # Send the literal JSON tokens to exercise server validation regardless of
+        # whether the installed HTTPX version rejects nonfinite json= values locally.
+        invalid = dev_client.put(
             f"{base}/value-assessment",
-            json=_value_assessment_payload(annual_volume=float("nan")),
-            headers=consultant_headers,
+            content=json.dumps(_value_assessment_payload(**{field: value})),
+            headers={**consultant_headers, "Content-Type": "application/json"},
         )
-
-    with pytest.raises(ValueError, match="Out of range float values are not JSON compliant"):
-        dev_client.put(
-            f"{base}/value-assessment",
-            json=_value_assessment_payload(hourly_cost=float("inf")),
-            headers=consultant_headers,
-        )
+        assert invalid.status_code == 422
+        assert field in invalid.text
+        with Session(get_engine()) as session:
+            assert session.exec(
+                select(ValueAssessment).where(ValueAssessment.use_case_id == use_case_id)
+            ).all() == []
 
     blank_override_reason = dev_client.post(
         f"{base}/scorecards/override",
@@ -416,6 +417,9 @@ def test_value_scorecard_rejects_invalid_payloads_and_override_reason(
         headers=consultant_headers,
     )
     assert blank_override_reason.status_code == 422
+    scorecards = dev_client.get(f"{base}/scorecards", headers=consultant_headers)
+    assert scorecards.status_code == 200
+    assert scorecards.json()["value_assessment"]["persisted"] is False
 
 
 def test_value_scorecard_rejects_invalid_configuration_and_cross_tenant_access(

@@ -1,6 +1,8 @@
 import unittest
+from dataclasses import asdict
 
 from ai_value_studio.models import (
+    VALUE_CALCULATION_VERSION,
     AssessmentInput,
     DimensionScore,
     ScoreConfiguration,
@@ -18,6 +20,21 @@ from ai_value_studio.scoring import (
 
 
 class ScoringTests(unittest.TestCase):
+    def _value_inputs(self, **overrides: float | int) -> ValueInputs:
+        inputs = {
+            "annual_volume": 12,
+            "time_saved_hours": 2,
+            "hourly_cost": 10,
+            "error_reduction_rate": 20,
+            "average_error_cost": 5,
+            "revenue_capacity_value": 120,
+            "estimated_annual_cost": 60,
+            "time_to_impact_months": 3,
+            "discount_rate": 0,
+        }
+        inputs.update(overrides)
+        return ValueInputs(**inputs)
+
     def _assessment(self) -> AssessmentInput:
         scores = [
             DimensionScore("business_value", 5, "High value"),
@@ -192,6 +209,187 @@ class ScoringTests(unittest.TestCase):
             [entry.lever for entry in result.sensitivities],
             ["time_saved_hours", "error_reduction_rate", "revenue_capacity_value"],
         )
+
+    def test_annual_units_net_and_delayed_scenarios(self) -> None:
+        inputs = self._value_inputs()
+        self.assertEqual(
+            compute_value_estimates(inputs),
+            {
+                "annual_time_value": 240.0,
+                "error_avoidance_value": 12.0,
+                "estimated_gross_value": 372.0,
+                "estimated_net_value": 312.0,
+            },
+        )
+        result = compute_value_assessment(inputs)
+        self.assertEqual(result.calculation_version, VALUE_CALCULATION_VERSION)
+        self.assertEqual(result.currency, "EUR")
+        self.assertEqual(
+            (
+                result.annual_time_value,
+                result.error_avoidance_value,
+                result.gross_value,
+                result.net_annual_value,
+                result.npv_3y,
+                result.payback_months,
+            ),
+            (240.0, 12.0, 372.0, 312.0, 843.0, 4.0),
+        )
+        self.assertEqual(
+            [asdict(scenario) for scenario in result.scenarios],
+            [
+                {
+                    "name": "conservative",
+                    "annual_time_value": 192.0,
+                    "error_avoidance_value": 9.6,
+                    "revenue_capacity_value": 96.0,
+                    "gross_value": 297.6,
+                    "net_annual_value": 237.6,
+                    "npv_3y": 638.4,
+                    "payback_months": 4.0,
+                },
+                {
+                    "name": "baseline",
+                    "annual_time_value": 240.0,
+                    "error_avoidance_value": 12.0,
+                    "revenue_capacity_value": 120.0,
+                    "gross_value": 372.0,
+                    "net_annual_value": 312.0,
+                    "npv_3y": 843.0,
+                    "payback_months": 4.0,
+                },
+                {
+                    "name": "optimistic",
+                    "annual_time_value": 288.0,
+                    "error_avoidance_value": 14.4,
+                    "revenue_capacity_value": 144.0,
+                    "gross_value": 446.4,
+                    "net_annual_value": 386.4,
+                    "npv_3y": 1047.6,
+                    "payback_months": 4.0,
+                },
+            ],
+        )
+
+    def test_sensitivity_changes_only_one_lever_and_includes_npv(self) -> None:
+        result = compute_value_assessment(self._value_inputs())
+        self.assertEqual(
+            [asdict(entry) for entry in result.sensitivities],
+            [
+                {
+                    "lever": "time_saved_hours",
+                    "baseline_net_annual_value": 312.0,
+                    "low_net_annual_value": 264.0,
+                    "high_net_annual_value": 360.0,
+                    "low_delta": -48.0,
+                    "high_delta": 48.0,
+                    "low_npv_3y": 711.0,
+                    "high_npv_3y": 975.0,
+                },
+                {
+                    "lever": "error_reduction_rate",
+                    "baseline_net_annual_value": 312.0,
+                    "low_net_annual_value": 309.6,
+                    "high_net_annual_value": 314.4,
+                    "low_delta": -2.4,
+                    "high_delta": 2.4,
+                    "low_npv_3y": 836.4,
+                    "high_npv_3y": 849.6,
+                },
+                {
+                    "lever": "revenue_capacity_value",
+                    "baseline_net_annual_value": 312.0,
+                    "low_net_annual_value": 288.0,
+                    "high_net_annual_value": 336.0,
+                    "low_delta": -24.0,
+                    "high_delta": 24.0,
+                    "low_npv_3y": 777.0,
+                    "high_npv_3y": 909.0,
+                },
+            ],
+        )
+
+    def test_discounted_monthly_npv_and_payback_after_delay(self) -> None:
+        result = compute_value_assessment(
+            self._value_inputs(
+                time_saved_hours=0,
+                error_reduction_rate=0,
+                discount_rate=0.10,
+            )
+        )
+        # Three monthly costs of 5 precede 33 monthly net inflows of 5.
+        # The effective monthly rate is 1.1 ** (1/12) - 1.
+        self.assertEqual(result.net_annual_value, 60.0)
+        self.assertEqual(result.npv_3y, 126.40)
+        self.assertEqual(result.payback_months, 7.0)
+
+    def test_zero_and_unrecovered_value_have_no_payback(self) -> None:
+        zero = compute_value_assessment(
+            self._value_inputs(
+                annual_volume=0,
+                revenue_capacity_value=0,
+                estimated_annual_cost=0,
+            )
+        )
+        self.assertEqual((zero.net_annual_value, zero.npv_3y), (0.0, 0.0))
+        self.assertIsNone(zero.payback_months)
+        self.assertTrue(all(scenario.payback_months is None for scenario in zero.scenarios))
+
+        never_recovers = compute_value_assessment(
+            self._value_inputs(
+                annual_volume=0,
+                revenue_capacity_value=120,
+                estimated_annual_cost=60,
+                time_to_impact_months=36,
+            )
+        )
+        self.assertEqual(never_recovers.net_annual_value, 60.0)
+        self.assertEqual(never_recovers.npv_3y, -180.0)
+        self.assertIsNone(never_recovers.payback_months)
+
+        delayed_free = compute_value_assessment(
+            self._value_inputs(
+                annual_volume=0,
+                revenue_capacity_value=120,
+                estimated_annual_cost=0,
+                time_to_impact_months=3,
+            )
+        )
+        self.assertEqual(delayed_free.payback_months, 4.0)
+
+    def test_percent_boundary_and_half_up_cents(self) -> None:
+        for rate, expected in ((0.99, 59.4), (1, 60.0), (1.01, 0.606), (100, 60.0)):
+            with self.subTest(rate=rate):
+                inputs = self._value_inputs(error_reduction_rate=rate)
+                self.assertEqual(
+                    compute_value_assessment(inputs).error_avoidance_value,
+                    float(f"{expected:.2f}"),
+                )
+        capped = compute_value_assessment(self._value_inputs(error_reduction_rate=100))
+        self.assertEqual(capped.scenarios[2].error_avoidance_value, 60.0)
+        self.assertEqual(capped.sensitivities[1].high_net_annual_value, capped.net_annual_value)
+
+        half_cent = self._value_inputs(
+            annual_volume=1,
+            time_saved_hours=0.0005,
+            hourly_cost=10,
+            error_reduction_rate=0,
+            revenue_capacity_value=0,
+            estimated_annual_cost=0.01,
+            time_to_impact_months=0,
+        )
+        self.assertEqual(
+            compute_value_estimates(half_cent),
+            {
+                "annual_time_value": 0.01,
+                "error_avoidance_value": 0.0,
+                "estimated_gross_value": 0.01,
+                "estimated_net_value": -0.01,
+            },
+        )
+        computed = compute_value_assessment(half_cent)
+        self.assertEqual(computed.annual_time_value, 0.01)
+        self.assertEqual(computed.net_annual_value, -0.01)
 
     def test_invalid_weights_and_missing_dimensions_raise(self) -> None:
         with self.assertRaisesRegex(ValueError, "exactly 1.00"):

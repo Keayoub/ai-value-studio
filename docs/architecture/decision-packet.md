@@ -217,6 +217,21 @@ Conventions: JSON API, Pydantic request/response schemas, RFC 7807-like stable e
    - `Error Avoidance = annual_volume × error_reduction_rate × average_error_cost`
    - `Gross = time + error avoidance + revenue/capacity`
    - `Net = gross − estimated_annual_cost`
+   Here `annual_volume` is transactions/year, `time_saved_hours` is hours/transaction,
+   `hourly_cost` is currency/hour, `average_error_cost` is currency/transaction,
+   and revenue/capacity and solution cost are currency/year. The existing
+   `error_reduction_rate` convention accepts a fraction from 0 through 1 (1 means
+   100%), or percentage points above 1 through 100 (e.g. 20 means 20%); values
+   immediately above 1 therefore switch units. Scenario factors 0.8/1/1.2
+   adjust the three benefit levers, with error reduction capped at 100%;
+   sensitivity factors 0.8/1.2 change one lever at a time, leaving costs fixed.
+   For 3-year NPV, spread annual gross benefit and annual cost across 36 months,
+   charge cost from month 1, start benefits after `time_to_impact_months`, and
+   discount each month's net cash flow by `(1 + annual_discount_rate)^(month/12)`.
+   Payback is the first month with benefits and nonnegative cumulative discounted
+   cash flow, or absent if none occurs within 36 months. Published money and
+   payback months are rounded to two decimals with Decimal `ROUND_HALF_UP`;
+   calculations retain unrounded amounts until the result is published.
 5. Data readiness: sources, availability, type (`structured|document|multimodal`), quality 1–5, owner, pilot accessibility, personal/sensitive data flags, needed connectors. Required: at least one source/owner, availability, quality, accessibility and sensitivity declaration. Output: gaps and data-feasibility evidence.
 6. Technical and operational readiness: systems/integrations, accepted deployment environment, latency/availability, team skills, support owner, training, dependencies, effort/investment. Required: environment, support owner, one dependency/none declared, effort band. Output: readiness/dependency list.
 7. Risk and governance: bad-answer impact, affected-person decision flag, explanation requirement, human review, data egress restrictions, required logs/audit, access model, compliance constraints. Required: impact level, human-validation policy, data boundary, access model, risk owner. Output: `Low|Medium|High|Critical` risk profile. High/Critical requires explicit mitigation before submission; a person-impacting decision requires human validation.
