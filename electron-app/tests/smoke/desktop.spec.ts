@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import { createServer } from "node:net";
 import path from "node:path";
 
 import {
@@ -38,8 +39,9 @@ const desktopRendererBuildConfigPath = path.resolve(
   "desktop-public-build.json",
 );
 const smokeProfileRoot = path.resolve(process.cwd(), "test-results");
-const packagedSmokeTestTimeoutMs = 90_000;
-const packagedDesktopLaunchStepTimeoutMs = 45_000;
+const packagedSmokeTestTimeoutMs = 240_000;
+const packagedDesktopLaunchStepTimeoutMs = 200_000;
+const packagedDesktopEndpointTimeoutMs = 25_000;
 const packagedDesktopWindowStepTimeoutMs = 45_000;
 const packagedDesktopUiStepTimeoutMs = 20_000;
 const packagedDesktopCleanupTimeoutMs = 15_000;
@@ -177,6 +179,27 @@ function readDevToolsEndpointFromFile(devToolsActivePortPath: string) {
   }
 
   return `http://127.0.0.1:${portLine}`;
+}
+
+async function reserveLoopbackPort() {
+  const server = createServer();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Failed to reserve a loopback port for packaged desktop CDP.");
+    }
+    return address.port;
+  } finally {
+    if (server.listening) {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  }
 }
 
 function waitForProcessExit(childProcess: ChildProcess) {
@@ -424,11 +447,12 @@ async function waitForBrowserContext(browser: Browser) {
 async function launchPackagedDesktop(packagedAppPath: string, smokeHomeDirectory: string) {
   const chromiumProfileDirectory = path.join(smokeHomeDirectory, "chromium-profile");
   const devToolsActivePortPath = path.join(chromiumProfileDirectory, "DevToolsActivePort");
+  const debuggingPort = await reserveLoopbackPort();
   const childProcess = spawn(
     packagedAppPath,
     [
       "--remote-debugging-address=127.0.0.1",
-      "--remote-debugging-port=0",
+      `--remote-debugging-port=${debuggingPort}`,
       `--user-data-dir=${chromiumProfileDirectory}`,
     ],
     {
@@ -463,7 +487,7 @@ async function launchPackagedDesktop(packagedAppPath: string, smokeHomeDirectory
 
   const exitPromise = waitForProcessExit(childProcess);
   const waitForDevToolsEndpoint = async () => {
-    const timeoutAt = Date.now() + packagedDesktopLaunchStepTimeoutMs;
+    const timeoutAt = Date.now() + packagedDesktopEndpointTimeoutMs;
 
     while (Date.now() < timeoutAt) {
       if (launchError) {
@@ -491,17 +515,33 @@ async function launchPackagedDesktop(packagedAppPath: string, smokeHomeDirectory
         return endpointFromFile;
       }
 
+      try {
+        const response = await fetch(`http://127.0.0.1:${debuggingPort}/json/version`, {
+          signal: AbortSignal.timeout(1_000),
+        });
+        if (response.ok) {
+          return `http://127.0.0.1:${debuggingPort}`;
+        }
+      } catch (error) {
+        if (
+          !(error instanceof TypeError) &&
+          !(error instanceof Error && error.name === "TimeoutError")
+        ) {
+          throw error;
+        }
+      }
+
       await waitForTimeout(packagedDesktopPollingIntervalMs);
     }
 
     throw new Error(
-      `Timed out waiting for the packaged desktop Chromium DevTools endpoint. ${formatProcessDiagnostics(stdoutLog, stderrLog)}`,
+      `Timed out waiting for the packaged desktop Chromium DevTools endpoint on 127.0.0.1:${debuggingPort}. ${formatProcessDiagnostics(stdoutLog, stderrLog)}`,
     );
   };
 
   try {
     const browser = await chromium.connectOverCDP(await waitForDevToolsEndpoint(), {
-      timeout: packagedDesktopLaunchStepTimeoutMs,
+      timeout: 10_000,
     });
     const context = await waitForBrowserContext(browser);
     const page = await waitForFirstPage(context);

@@ -1174,8 +1174,12 @@ test("supports the changes-request loop before creating a new draft version", as
     "Qualifier les dossiers entrants avant affectation.",
   );
   await expect(page.getByLabel("Processus cible")).toBeEnabled();
+  await expect(page.getByText(/^(Étape|Step) 1 \/ 8$/)).toBeVisible();
   for (let index = 0; index < 7; index += 1) {
     await page.getByRole("button", { name: CONTINUE_LABEL }).click();
+    await expect(
+      page.getByText(new RegExp(`^(Étape|Step) ${index + 2} / 8$`)),
+    ).toBeVisible();
   }
   await expect(
     page.getByRole("heading", { name: REVIEW_HEADING }),
