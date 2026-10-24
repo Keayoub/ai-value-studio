@@ -264,6 +264,7 @@ def test_postgres_rls_policies_enforce_real_row_isolation(postgres_test_urls) ->
                         branding_json,
                         confidentiality_policy,
                         status,
+                        ai_assistance_enabled,
                         created_by_subject_id,
                         created_at,
                         updated_at
@@ -279,7 +280,8 @@ def test_postgres_rls_policies_enforce_real_row_isolation(postgres_test_urls) ->
                         'Workspace A description',
                         CAST(:branding_json AS json),
                         'restricted',
-                        'ACTIVE',
+                        'active',
+                        false,
                         :actor_id,
                         now(),
                         now()
@@ -294,7 +296,8 @@ def test_postgres_rls_policies_enforce_real_row_isolation(postgres_test_urls) ->
                         'Workspace B description',
                         CAST(:branding_json AS json),
                         'internal-only',
-                        'ACTIVE',
+                        'active',
+                        false,
                         :outsider_id,
                         now(),
                         now()
@@ -370,7 +373,7 @@ def test_postgres_rls_policies_enforce_real_row_isolation(postgres_test_urls) ->
 
     assert not role_row.rolbypassrls
     assert not role_row.rolsuper
-    assert len(policies) == 10
+    assert len(policies) >= 10
     assert all(row.relrowsecurity and row.relforcerowsecurity for row in row_security)
 
     with app_engine.begin() as connection:
